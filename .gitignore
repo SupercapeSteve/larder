@@ -46,3 +46,6 @@ dev-dist/
 
 .vercel
 .env*
+
+# Widget script with a live Siri token baked in — never commit
+scripts/*.local.js

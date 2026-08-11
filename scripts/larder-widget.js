@@ -165,8 +165,12 @@ function buildWidget(payload, stale) {
   widget.backgroundColor = BG
   widget.setPadding(14, 14, 14, 14)
   widget.url = APP_URL
-  // iOS treats this as a hint, not a guarantee.
-  widget.refreshAfterDate = new Date(Date.now() + 10 * 60 * 1000)
+  // A request, not a schedule. iOS budgets widgets to roughly 40–70 reloads a
+  // day (about every 15–60 min) and expects timeline entries no closer than
+  // 5 minutes apart, so 5 is the strongest honest hint we can give. Asking for
+  // less does not buy more refreshes — it just lets iOS pick sooner when it
+  // has budget to spare.
+  widget.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000)
 
   header(widget, items.length, stale)
   widget.addSpacer(8)
@@ -226,7 +230,20 @@ function buildWidget(payload, stale) {
   }
 
   widget.addSpacer()
+  stamp(widget, payload.fetchedAt)
   return widget
+}
+
+// Since iOS decides when this reloads, say plainly how old the data is. A
+// visible timestamp turns "is this stale?" from a guess into a fact.
+function stamp(widget, fetchedAt) {
+  if (!fetchedAt) return
+  const when = new Date(fetchedAt)
+  const hh = String(when.getHours()).padStart(2, '0')
+  const mm = String(when.getMinutes()).padStart(2, '0')
+  const line = widget.addText(`updated ${hh}:${mm}`)
+  line.font = Font.systemFont(9)
+  line.textColor = MUTED
 }
 
 function errorWidget(message) {
