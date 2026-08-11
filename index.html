@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover is what makes env(safe-area-inset-*) non-zero.
+         Without it the add-item bar sits under the iOS home indicator. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    <title>Larder</title>
+    <meta name="description" content="A realtime household grocery list." />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#27583c" />
+
+    <!-- iOS standalone behaviour. Without apple-touch-icon, iOS uses a
+         screenshot of the page as the home-screen icon. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Groceries" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+
+    <style>
+      /* Painted before any JS runs, so a cold start on a slow connection is
+         the app's background colour rather than a white flash. */
+      html {
+        background: #f2f8f4;
+      }
+      @media (prefers-color-scheme: dark) {
+        html {
+          background: #0e2117;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

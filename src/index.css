@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+    /* Fallbacks so layouts stay sane on browsers without safe-area support. */
+    --sa-top: env(safe-area-inset-top, 0px);
+    --sa-bottom: env(safe-area-inset-bottom, 0px);
+    --sa-left: env(safe-area-inset-left, 0px);
+    --sa-right: env(safe-area-inset-right, 0px);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-larder-50 text-larder-950 antialiased dark:bg-larder-950 dark:text-larder-50;
+    /* Stop iOS from bouncing the whole document behind the fixed add bar. */
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* iOS zooms the viewport when a focused input has font-size < 16px. */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-larder-500 ring-offset-2 ring-offset-larder-50 dark:ring-offset-larder-950;
+  }
+}
+
+@layer components {
+  .safe-top {
+    padding-top: var(--sa-top);
+  }
+  .safe-bottom {
+    padding-bottom: var(--sa-bottom);
+  }
+  .safe-x {
+    padding-left: var(--sa-left);
+    padding-right: var(--sa-right);
+  }
+
+  /* Every interactive control clears the 44px minimum by construction. */
+  .tap {
+    @apply inline-flex min-h-tap min-w-tap items-center justify-center;
+  }
+
+  .btn {
+    @apply tap select-none rounded-xl px-4 text-base font-medium transition-colors
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-larder-600 text-white hover:bg-larder-700 active:bg-larder-800
+           dark:bg-larder-500 dark:hover:bg-larder-400 dark:active:bg-larder-300 dark:active:text-larder-950;
+  }
+
+  .btn-secondary {
+    @apply btn border border-larder-300 bg-white text-larder-800 hover:bg-larder-100
+           dark:border-larder-700 dark:bg-larder-900 dark:text-larder-100 dark:hover:bg-larder-800;
+  }
+
+  .btn-ghost {
+    @apply btn text-larder-700 hover:bg-larder-200/60 dark:text-larder-200 dark:hover:bg-larder-800/60;
+  }
+
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700 active:bg-red-800;
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-larder-300 bg-white px-4 py-3 text-larder-950
+           placeholder:text-larder-400 focus:border-larder-500
+           dark:border-larder-700 dark:bg-larder-900 dark:text-larder-50 dark:placeholder:text-larder-500;
+    min-height: 48px;
+  }
+
+  .card {
+    @apply rounded-2xl border border-larder-200 bg-white shadow-sm dark:border-larder-800 dark:bg-larder-900;
+  }
+
+  .skeleton {
+    @apply rounded-lg bg-larder-200/70 dark:bg-larder-800/70;
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.35) 50%,
+      transparent 100%
+    );
+    background-size: 400px 100%;
+    background-repeat: no-repeat;
+    @apply animate-shimmer;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
