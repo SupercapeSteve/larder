@@ -20,6 +20,7 @@ export type MemberWithProfile = {
   displayName: string
   avatarEmoji: string | null
   avatarColor: string | null
+  avatarUrl: string | null
   isYou: boolean
 }
 
@@ -88,7 +89,7 @@ export function useMembers(householdId: string | undefined) {
 
       const { data: profiles, error: profileError } = await supabase
         .from('profiles')
-        .select('id, display_name, avatar_emoji, avatar_color')
+        .select('id, display_name, avatar_emoji, avatar_color, avatar_url')
         .in('id', ids)
       if (profileError) throw profileError
 
@@ -103,6 +104,7 @@ export function useMembers(householdId: string | undefined) {
           displayName: profile?.display_name ?? 'Someone',
           avatarEmoji: profile?.avatar_emoji ?? null,
           avatarColor: profile?.avatar_color ?? null,
+          avatarUrl: profile?.avatar_url ?? null,
           isYou: m.user_id === user?.id,
         }
       })

@@ -20,6 +20,7 @@ export type Database = {
           display_name: string
           avatar_emoji: string | null
           avatar_color: string | null
+          avatar_url: string | null
           created_at: string
         }
         Insert: {
@@ -27,6 +28,7 @@ export type Database = {
           display_name: string
           avatar_emoji?: string | null
           avatar_color?: string | null
+          avatar_url?: string | null
           created_at?: string
         }
         Update: {
@@ -34,6 +36,7 @@ export type Database = {
           display_name?: string
           avatar_emoji?: string | null
           avatar_color?: string | null
+          avatar_url?: string | null
           created_at?: string
         }
         Relationships: []

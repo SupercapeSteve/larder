@@ -171,6 +171,7 @@ export default function HouseholdDetail() {
                 displayName={member.displayName}
                 emoji={member.avatarEmoji}
                 color={member.avatarColor}
+                imageUrl={member.avatarUrl}
                 size="md"
               />
 

@@ -15,6 +15,7 @@ export type RowMember = {
   displayName: string
   avatarEmoji: string | null
   avatarColor: string | null
+  avatarUrl: string | null
 }
 
 type ItemRowProps = {
@@ -286,6 +287,7 @@ export function ItemRow({ item, memberFor, onToggle, onEdit, onDelete }: ItemRow
                     displayName={actor?.displayName ?? null}
                     emoji={actor?.avatarEmoji ?? null}
                     color={actor?.avatarColor ?? null}
+                    imageUrl={actor?.avatarUrl ?? null}
                     size="xs"
                   />
                   {attribution}

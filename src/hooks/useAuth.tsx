@@ -146,6 +146,7 @@ export type ProfileEdits = {
   displayName?: string
   avatarEmoji?: string | null
   avatarColor?: string | null
+  avatarUrl?: string | null
 }
 
 /**
@@ -173,6 +174,7 @@ export function useUpdateProfile() {
       }
       if (edits.avatarEmoji !== undefined) patch.avatar_emoji = edits.avatarEmoji
       if (edits.avatarColor !== undefined) patch.avatar_color = edits.avatarColor
+      if (edits.avatarUrl !== undefined) patch.avatar_url = edits.avatarUrl
 
       const { data, error } = await supabase
         .from('profiles')

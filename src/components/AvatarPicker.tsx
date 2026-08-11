@@ -1,5 +1,7 @@
-import { Check, X } from 'lucide-react'
+import { useRef, type ChangeEvent } from 'react'
+import { Check, ImageUp, Trash2, X } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
+import { Spinner } from '@/components/ui'
 import { AVATAR_COLORS, AVATAR_EMOJI, AVATAR_SWATCH, type AvatarColor } from '@/lib/avatars'
 
 type AvatarPickerProps = {
@@ -7,23 +9,53 @@ type AvatarPickerProps = {
   displayName: string | null
   emoji: string | null
   color: string | null
+  imageUrl: string | null
+  uploading?: boolean
   onChange: (next: { emoji?: string | null; color?: AvatarColor }) => void
+  onUpload: (file: File) => void
+  onRemoveImage: () => void
 }
 
-export function AvatarPicker({ userId, displayName, emoji, color, onChange }: AvatarPickerProps) {
+export function AvatarPicker({
+  userId,
+  displayName,
+  emoji,
+  color,
+  imageUrl,
+  uploading = false,
+  onChange,
+  onUpload,
+  onRemoveImage,
+}: AvatarPickerProps) {
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  function onPick(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    // Reset immediately so choosing the same file twice still fires onChange.
+    event.target.value = ''
+    if (file) onUpload(file)
+  }
+
   return (
     <div className="px-4 py-4">
       <div className="mb-4 flex items-center gap-4">
-        <Avatar userId={userId} displayName={displayName} emoji={emoji} color={color} size="lg" />
+        <Avatar
+          userId={userId}
+          displayName={displayName}
+          emoji={emoji}
+          color={color}
+          imageUrl={imageUrl}
+          size="lg"
+        />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-larder-950 dark:text-larder-50">
-            {emoji ? 'Emoji avatar' : 'Your initial'}
+            {imageUrl ? 'Your photo' : emoji ? 'Emoji avatar' : 'Your initial'}
           </p>
           <p className="mt-0.5 text-xs text-larder-600 dark:text-larder-400">
             Shown next to everything you add.
           </p>
         </div>
-        {emoji ? (
+        {emoji && !imageUrl ? (
           <button
             type="button"
             onClick={() => onChange({ emoji: null })}
@@ -34,6 +66,44 @@ export function AvatarPicker({ userId, displayName, emoji, color, onChange }: Av
           </button>
         ) : null}
       </div>
+
+      {/* ── Upload ──────────────────────────────────────────────────────── */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={onPick}
+        className="sr-only"
+        aria-label="Choose a profile picture"
+      />
+      <div className="mb-5 flex gap-2">
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="btn-secondary flex-1 gap-2 text-sm"
+        >
+          {uploading ? <Spinner /> : <ImageUp className="h-4 w-4" aria-hidden />}
+          {imageUrl ? 'Change photo' : 'Upload a photo'}
+        </button>
+        {imageUrl ? (
+          <button
+            type="button"
+            onClick={onRemoveImage}
+            disabled={uploading}
+            className="btn-secondary shrink-0 gap-2 text-sm text-red-600 dark:text-red-400"
+            aria-label="Remove photo"
+          >
+            <Trash2 className="h-4 w-4" aria-hidden />
+          </button>
+        ) : null}
+      </div>
+
+      {imageUrl ? (
+        <p className="mb-5 text-xs text-larder-500">
+          Your photo is used while it's set. Remove it to go back to an emoji or your initial.
+        </p>
+      ) : null}
 
       <fieldset>
         <legend className="mb-2 text-xs font-medium text-larder-700 dark:text-larder-300">

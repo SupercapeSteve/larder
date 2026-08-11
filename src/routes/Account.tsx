@@ -9,6 +9,7 @@ import { useToast } from '@/components/Toast'
 import { useAuth, useProfile, useUpdateProfile } from '@/hooks/useAuth'
 import { Avatar } from '@/components/Avatar'
 import { AvatarPicker } from '@/components/AvatarPicker'
+import { useRemoveAvatar, useUploadAvatar } from '@/hooks/useAvatarUpload'
 import { usePreferences, type TextSize, type ThemeChoice } from '@/hooks/usePreferences'
 import { useHouseholds } from '@/hooks/useHouseholds'
 import { MIN_PASSWORD_LENGTH, signOut, updatePassword, validatePassword } from '@/lib/auth'
@@ -168,7 +169,12 @@ function AvatarSection() {
   const { user } = useAuth()
   const { data: profile } = useProfile()
   const updateProfile = useUpdateProfile()
+  const uploadAvatar = useUploadAvatar()
+  const removeAvatar = useRemoveAvatar()
   const { showToast } = useToast()
+
+  const onError = (error: unknown) =>
+    showToast({ message: (error as Error).message, tone: 'error' })
 
   return (
     <SettingsSection title="Your avatar">
@@ -177,16 +183,28 @@ function AvatarSection() {
         displayName={profile?.display_name ?? null}
         emoji={profile?.avatar_emoji ?? null}
         color={profile?.avatar_color ?? null}
+        imageUrl={profile?.avatar_url ?? null}
+        uploading={uploadAvatar.isPending || removeAvatar.isPending}
         onChange={(next) =>
           updateProfile.mutate(
             {
               ...(next.emoji !== undefined ? { avatarEmoji: next.emoji } : {}),
               ...(next.color !== undefined ? { avatarColor: next.color } : {}),
             },
-            {
-              onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
-            },
+            { onError },
           )
+        }
+        onUpload={(file) =>
+          uploadAvatar.mutate(file, {
+            onSuccess: () => showToast({ message: 'Photo updated.' }),
+            onError,
+          })
+        }
+        onRemoveImage={() =>
+          removeAvatar.mutate(undefined, {
+            onSuccess: () => showToast({ message: 'Photo removed.' }),
+            onError,
+          })
         }
       />
     </SettingsSection>
@@ -263,6 +281,7 @@ function NameSection() {
             displayName={profile?.display_name ?? null}
             emoji={profile?.avatar_emoji ?? null}
             color={profile?.avatar_color ?? null}
+            imageUrl={profile?.avatar_url ?? null}
             size="md"
           />
           <span className="min-w-0 flex-1 truncate text-sm font-medium text-larder-950 dark:text-larder-50">

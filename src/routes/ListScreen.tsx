@@ -76,6 +76,7 @@ export default function ListScreen() {
           displayName: m.isYou ? 'you' : m.displayName,
           avatarEmoji: m.avatarEmoji,
           avatarColor: m.avatarColor,
+          avatarUrl: m.avatarUrl,
         },
       ]),
     )
