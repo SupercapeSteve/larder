@@ -259,24 +259,26 @@ export default function ListScreen() {
                     />
                   </button>
 
-                  {!isCollapsed ? (
-                    <ul
-                      id={`cat-panel-${category}`}
-                      aria-label={category}
-                      className="card mt-1.5 divide-y divide-larder-100 overflow-hidden dark:divide-larder-800"
-                    >
-                      {categoryItems.map((item) => (
-                        <ItemRow
-                          key={item.id}
-                          item={item}
-                          nameFor={nameFor}
-                          onToggle={onToggle}
-                          onEdit={setEditing}
-                          onDelete={onDelete}
-                        />
-                      ))}
-                    </ul>
-                  ) : null}
+                  <div className="collapsible mt-1.5" data-collapsed={isCollapsed}>
+                    <div>
+                      <ul
+                        id={`cat-panel-${category}`}
+                        aria-label={category}
+                        className="card divide-y divide-larder-100 overflow-hidden dark:divide-larder-800"
+                      >
+                        {categoryItems.map((item) => (
+                          <ItemRow
+                            key={item.id}
+                            item={item}
+                            nameFor={nameFor}
+                            onToggle={onToggle}
+                            onEdit={setEditing}
+                            onDelete={onDelete}
+                          />
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
                 </section>
               )
             })
@@ -318,24 +320,26 @@ export default function ListScreen() {
                 {clearButton}
               </div>
 
-              {showChecked ? (
-                <ul
-                  id="checked-panel"
-                  aria-label="Checked off"
-                  className="card mt-1.5 divide-y divide-larder-100 overflow-hidden opacity-75 dark:divide-larder-800"
-                >
-                  {checkedItems.map((item) => (
-                    <ItemRow
-                      key={item.id}
-                      item={item}
-                      nameFor={nameFor}
-                      onToggle={onToggle}
-                      onEdit={setEditing}
-                      onDelete={onDelete}
-                    />
-                  ))}
-                </ul>
-              ) : null}
+              <div className="collapsible mt-1.5" data-collapsed={!showChecked}>
+                <div>
+                  <ul
+                    id="checked-panel"
+                    aria-label="Checked off"
+                    className="card divide-y divide-larder-100 overflow-hidden opacity-75 dark:divide-larder-800"
+                  >
+                    {checkedItems.map((item) => (
+                      <ItemRow
+                        key={item.id}
+                        item={item}
+                        nameFor={nameFor}
+                        onToggle={onToggle}
+                        onEdit={setEditing}
+                        onDelete={onDelete}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              </div>
             </section>
           ) : null}
         </div>

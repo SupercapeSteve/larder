@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { Plus } from 'lucide-react'
 import { parseItemInput } from '@/lib/parseItem'
+import { useHaptic } from '@/hooks/usePreferences'
 import { categorise, CATEGORY_EMOJI } from '@/lib/categories'
 
 /**
@@ -13,6 +14,7 @@ import { categorise, CATEGORY_EMOJI } from '@/lib/categories'
 export function AddItemBar({ onAdd, disabled }: { onAdd: (raw: string) => void; disabled?: boolean }) {
   const [value, setValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const haptic = useHaptic()
 
   const preview = value.trim().length > 1 ? parseItemInput(value) : null
   const previewCategory = preview && preview.name.length > 0 ? categorise(preview.name) : null
@@ -23,6 +25,7 @@ export function AddItemBar({ onAdd, disabled }: { onAdd: (raw: string) => void; 
     if (raw.length === 0) return
 
     onAdd(raw)
+    haptic(8)
     setValue('')
     // Refocus explicitly: iOS drops focus on some form submissions, which
     // dismisses the keyboard and breaks rapid entry.

@@ -230,6 +230,32 @@ hash is ever stored.
 
 ---
 
+## Home screen widget (iOS)
+
+iOS gives web apps **no widget API** — WidgetKit requires a native app extension, so a
+PWA cannot ship a home screen widget at all. The workaround is
+[Scriptable](https://apps.apple.com/us/app/scriptable/id1405459188), which renders real
+WidgetKit widgets from JavaScript. `scripts/larder-widget.js` is that widget, and it reads
+the list through the same `/siri` endpoint, so there is nothing extra to deploy.
+
+1. Install **Scriptable** (free, App Store)
+2. In Larder: Household settings → **Siri & Shortcuts** → generate a token and copy it
+3. Scriptable → **+** → paste the contents of `scripts/larder-widget.js` → name it `Larder`
+4. Replace the `TOKEN` line at the top with your token
+5. Home Screen → long-press → **+** → **Scriptable** → choose a size
+6. Long-press the placed widget → **Edit Widget** → Script: `Larder`
+
+| Size | Shows |
+| --- | --- |
+| Small | Item count and the first four |
+| Medium | Six items with aisle icons |
+| Large | Grouped by aisle, up to fourteen |
+
+Tapping it opens the app. It caches the last successful response, so a refresh with no
+signal shows the previous list marked `· offline` rather than an error. iOS decides when
+widgets refresh — `refreshAfterDate` is a hint, not a schedule, so expect minutes of lag
+rather than the sub-second sync you get inside the app.
+
 ## Project layout
 
 ```

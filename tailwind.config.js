@@ -1,6 +1,12 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  future: {
+    // Wraps every `hover:` variant in `@media (hover: hover)`. Without it,
+    // tapping a button on iOS leaves its hover style stuck until you tap
+    // elsewhere, which reads as the UI being frozen mid-press.
+    hoverOnlyWhenSupported: true,
+  },
   // Class-based, not media: the user can override the OS from Settings, and
   // PreferencesProvider is what toggles `dark` on <html>.
   darkMode: 'class',
@@ -50,12 +56,43 @@ export default {
           '0%': { backgroundPosition: '-400px 0' },
           '100%': { backgroundPosition: '400px 0' },
         },
+        'page-in': {
+          '0%': { opacity: '0', transform: 'translateY(6px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'row-in': {
+          '0%': { opacity: '0', transform: 'translateY(-4px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        pop: {
+          '0%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.18)' },
+          '100%': { transform: 'scale(1)' },
+        },
+        'sheet-in': {
+          '0%': { transform: 'translateY(100%)' },
+          '100%': { transform: 'translateY(0)' },
+        },
+        'dialog-in': {
+          '0%': { opacity: '0', transform: 'scale(0.96) translateY(8px)' },
+          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+        },
+        'backdrop-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
       },
       animation: {
         'slide-up': 'slide-up 160ms ease-out',
         'fade-in': 'fade-in 140ms ease-out',
         'toast-in': 'toast-in 200ms cubic-bezier(0.16, 1, 0.3, 1)',
         shimmer: 'shimmer 1.4s linear infinite',
+        page: 'page-in 200ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'row-in': 'row-in 180ms cubic-bezier(0.16, 1, 0.3, 1)',
+        pop: 'pop 260ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'sheet-in': 'sheet-in 300ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'dialog-in': 'dialog-in 220ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'backdrop-in': 'backdrop-in 200ms ease-out',
       },
     },
   },

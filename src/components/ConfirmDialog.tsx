@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useScrollLock } from '@/hooks/useScrollLock'
 
 type ConfirmDialogProps = {
   open: boolean
@@ -40,6 +41,8 @@ export function ConfirmDialog({
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [open, onCancel])
 
+  useScrollLock(open)
+
   if (!open) return null
 
   return (
@@ -47,7 +50,7 @@ export function ConfirmDialog({
       <button
         type="button"
         aria-label="Close"
-        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+        className="animate-backdrop-in absolute inset-0 bg-black/40 backdrop-blur-[2px]"
         onClick={onCancel}
       />
       <div
@@ -55,7 +58,7 @@ export function ConfirmDialog({
         aria-modal="true"
         aria-labelledby="confirm-title"
         aria-describedby="confirm-body"
-        className="safe-bottom animate-slide-up relative m-3 w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl dark:bg-larder-900"
+        className="safe-bottom animate-dialog-in relative m-3 w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl dark:bg-larder-900 sm:rounded-2xl"
       >
         <h2 id="confirm-title" className="text-lg font-semibold text-larder-950 dark:text-larder-50">
           {title}

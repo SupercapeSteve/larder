@@ -18,11 +18,34 @@
     height: 100%;
   }
 
+  /* Dynamic viewport height. Safari's toolbar shrinks and grows as you scroll,
+     and with plain `100%`/`100vh` the sticky add bar drifts under it or leaves
+     a gap. `dvh` tracks the real visible area. */
+  @supports (height: 100dvh) {
+    html {
+      height: 100dvh;
+    }
+  }
+
   body {
     @apply bg-larder-50 text-larder-950 antialiased dark:bg-larder-950 dark:text-larder-50;
     /* Stop iOS from bouncing the whole document behind the fixed add bar. */
     overscroll-behavior-y: none;
     -webkit-tap-highlight-color: transparent;
+    /* The long-press-to-edit gesture would otherwise raise the text magnifier
+       and the copy/paste callout on top of the edit sheet. */
+    -webkit-touch-callout: none;
+  }
+
+  /* Text stays selectable where selecting text is the point. */
+  input,
+  textarea,
+  [contenteditable],
+  p,
+  code,
+  pre {
+    -webkit-user-select: text;
+    user-select: text;
   }
 
   /* Root font size drives every rem-based utility, so the text-size preference
@@ -67,9 +90,66 @@
     @apply inline-flex min-h-tap min-w-tap items-center justify-center;
   }
 
+  /* Scroll containers: iOS momentum, and a bounce that stays inside the
+     region instead of dragging the whole page with it. */
+  .scroll-y {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    scrollbar-width: thin;
+  }
+
+  /* The list must not scroll behind an open sheet. Scoped to the page shell so
+     the sheet's own scroll area keeps working. */
+  body.modal-open main.scroll-y {
+    overflow: hidden;
+  }
+
   .btn {
-    @apply tap select-none rounded-xl px-4 text-base font-medium transition-colors
+    @apply tap select-none rounded-xl px-4 text-base font-medium
            disabled:cursor-not-allowed disabled:opacity-50;
+    transition:
+      background-color 140ms ease,
+      transform 120ms cubic-bezier(0.16, 1, 0.3, 1),
+      opacity 140ms ease;
+  }
+
+  /* A press you can feel. 0.97 registers without wobbling. */
+  .btn:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  /* Row-level press feedback, for the whole-row tap target on the list. */
+  .pressable {
+    transition: background-color 140ms ease;
+    -webkit-touch-callout: none;
+    @apply select-none;
+  }
+
+  /* Height animation without measuring anything in JS. The child needs
+     `overflow: hidden` for the 1fr → 0fr transition to clip rather than jump. */
+  .collapsible {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .collapsible[data-collapsed='true'] {
+    grid-template-rows: 0fr;
+  }
+  .collapsible > * {
+    overflow: hidden;
+    min-height: 0;
+    visibility: visible;
+    transition: visibility 0s;
+  }
+
+  /* Clipped content is still focusable, so a keyboard user would tab into a
+     section they had collapsed. `visibility: hidden` removes it from the tab
+     order and the accessibility tree — delayed until the height animation has
+     finished, so collapsing still looks like it slides shut. */
+  .collapsible[data-collapsed='true'] > * {
+    visibility: hidden;
+    transition: visibility 0s linear 240ms;
   }
 
   .btn-primary {

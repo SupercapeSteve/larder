@@ -342,7 +342,16 @@ async function handleRead(db: SupabaseClient, token: TokenRow): Promise<Response
   const names = items.map((item) => spokenItem(item))
   return speak(
     `You have ${items.length} ${plural(items.length, 'item', 'items')}: ${listToSentence(names)}.`,
-    { items: items.map((item) => ({ name: item.name, quantity: item.quantity })) },
+    {
+      count: items.length,
+      // `category` is here for the Scriptable home-screen widget, which groups
+      // by aisle. Additive, so existing Shortcuts are unaffected.
+      items: items.map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+        category: item.category,
+      })),
+    },
   )
 }
 

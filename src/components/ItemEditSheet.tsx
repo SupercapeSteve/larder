@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Trash2, X } from 'lucide-react'
 import { TextField } from '@/components/ui'
+import { useScrollLock } from '@/hooks/useScrollLock'
 import { CATEGORIES, CATEGORY_EMOJI, toCategory } from '@/lib/categories'
 import type { Item } from '@/types/database'
 import type { ItemEdits } from '@/hooks/useItems'
@@ -40,6 +41,8 @@ export function ItemEditSheet({ item, onSave, onDelete, onClose }: ItemEditSheet
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [item, onClose])
 
+  useScrollLock(item !== null)
+
   if (!item) return null
 
   function save() {
@@ -64,7 +67,7 @@ export function ItemEditSheet({ item, onSave, onDelete, onClose }: ItemEditSheet
       <button
         type="button"
         aria-label="Close"
-        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+        className="animate-backdrop-in absolute inset-0 bg-black/40 backdrop-blur-[2px]"
         onClick={onClose}
       />
 
@@ -72,8 +75,15 @@ export function ItemEditSheet({ item, onSave, onDelete, onClose }: ItemEditSheet
         role="dialog"
         aria-modal="true"
         aria-labelledby="edit-item-title"
-        className="safe-bottom animate-slide-up relative max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl dark:bg-larder-900 sm:m-3 sm:rounded-2xl"
+        className="safe-bottom animate-sheet-in scroll-y relative max-h-[85vh] w-full max-w-md rounded-t-3xl bg-white p-5 shadow-2xl dark:bg-larder-900 sm:m-3 sm:rounded-2xl"
       >
+        {/* Reads as a bottom sheet at a glance, and marks the drag affordance
+            people instinctively reach for. */}
+        <div
+          aria-hidden
+          className="mx-auto mb-4 h-1 w-9 rounded-full bg-larder-300 dark:bg-larder-700 sm:hidden"
+        />
+
         <div className="mb-4 flex items-center justify-between">
           <h2 id="edit-item-title" className="text-lg font-semibold text-larder-950 dark:text-larder-50">
             Edit item
