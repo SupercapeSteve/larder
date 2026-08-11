@@ -37,7 +37,10 @@ export async function signUp(params: {
     options: {
       // Read by the handle_new_user trigger to seed public.profiles.
       data: { display_name: displayName.slice(0, 60) },
-      emailRedirectTo: `${window.location.origin}/signin`,
+      // Its own route, not /signin: the link arrives with tokens in the
+      // fragment that have to be consumed deliberately, and the user deserves
+      // a "you're confirmed" screen rather than a bare sign-in form.
+      emailRedirectTo: `${window.location.origin}/confirm`,
     },
   })
 
@@ -80,15 +83,16 @@ export async function updatePassword(newPassword: string): Promise<AuthResult> {
 }
 
 /**
- * Consume a recovery link's tokens.
+ * Consume the auth tokens carried by an emailed link — password recovery or
+ * sign-up confirmation, both of which land here in the same shape.
  *
  * `detectSessionInUrl` is off globally so that no stray URL can ever establish
- * a session behind the user's back. The recovery route opts in explicitly.
- * Implicit flow puts the tokens in the fragment, which — unlike a PKCE code —
- * needs no verifier from the originating browser, so the link still works when
- * iOS opens it in Safari rather than the installed app.
+ * a session behind the user's back. Only the two routes that expect a link opt
+ * in explicitly. Implicit flow puts the tokens in the fragment, which — unlike
+ * a PKCE code — needs no verifier from the originating browser, so the link
+ * still works when iOS opens it in Safari rather than the installed app.
  */
-export async function consumeRecoveryLink(): Promise<
+export async function consumeAuthTokensFromUrl(): Promise<
   { ok: true; consumed: boolean } | { ok: false; message: string }
 > {
   const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : ''

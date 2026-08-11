@@ -19,6 +19,20 @@ function isItem(value: unknown): value is Item {
 }
 
 /**
+ * All a DELETE payload gives us.
+ *
+ * Supabase strips the old record down to the primary key whenever RLS is
+ * enabled on the table — deliberately, because DELETE events are broadcast
+ * without a per-row RLS check and a full row would leak data. `replica
+ * identity full` does not change this; RLS wins. So a delete arrives as
+ * `{ id }` and nothing else.
+ */
+function hasId(value: unknown): value is { id: string } {
+  if (typeof value !== 'object' || value === null) return false
+  return typeof (value as Record<string, unknown>).id === 'string'
+}
+
+/**
  * Live updates for one list.
  *
  * Design notes, each of which is load-bearing:
@@ -31,6 +45,9 @@ function isItem(value: unknown): value is Item {
  *    that was just made.
  *  - An UPDATE older than what we hold is dropped. Reconnect can deliver
  *    payloads out of order, and a stale one must not clobber a newer value.
+ *  - DELETE is subscribed to separately and without a filter. With RLS on,
+ *    Supabase strips a delete's old record to its primary key, so `list_id` is
+ *    not there to filter on and a filtered subscription silently never fires.
  *  - On tab-visible we reconcile against the server. iOS suspends WebSockets
  *    when the app backgrounds and silently drops everything that happened
  *    meanwhile — without this, someone who backgrounds the app in the car park
@@ -86,28 +103,36 @@ export function useRealtimeItems(listId: string | undefined) {
       }, jittered)
     }
 
-    function handleChange(payload: RealtimePostgresChangesPayload<Item>) {
+    function handleDelete(payload: RealtimePostgresChangesPayload<Item>) {
       if (!listId) return
 
-      if (payload.eventType === 'DELETE') {
-        // Only arrives with a full row because items has REPLICA IDENTITY FULL.
-        const old = payload.old
-        if (!isItem(old)) return
-        if (hasPendingLocalWrite(old.id)) return
-        removeItemFromCache(queryClient, listId, old.id)
-        return
-      }
+      const old = payload.old
+      if (!hasId(old)) return
+      if (hasPendingLocalWrite(old.id)) return
+
+      // Removing an id we do not hold is a no-op, which is what makes the
+      // unfiltered subscription below safe.
+      removeItemFromCache(queryClient, listId, old.id)
+    }
+
+    function handleUpsert(payload: RealtimePostgresChangesPayload<Item>) {
+      if (!listId) return
 
       const row = payload.new
       if (!isItem(row)) return
       if (row.list_id !== listId) return
       if (hasPendingLocalWrite(row.id)) return
 
-      if (payload.eventType === 'UPDATE') {
-        const current = queryClient.getQueryData<Item[]>(qk.items(listId)) ?? []
-        const existing = current.find((i) => i.id === row.id)
-        if (existing && !isNewer(row, existing)) return
-      }
+      // Staleness guard, for INSERT as well as UPDATE.
+      //
+      // It has to cover INSERT: add an item, tick it off a second later, and
+      // the INSERT echo can still be in flight. That echo carries the row as it
+      // was when inserted — checked: false — so applying it silently un-ticks
+      // the item a moment after the user tapped it. Any payload older than what
+      // we already hold is dropped.
+      const current = queryClient.getQueryData<Item[]>(qk.items(listId)) ?? []
+      const existing = current.find((i) => i.id === row.id)
+      if (existing && !isNewer(row, existing)) return
 
       upsertItemInCache(queryClient, listId, row)
     }
@@ -125,10 +150,29 @@ export function useRealtimeItems(listId: string | undefined) {
 
       const channel = supabase
         .channel(`items:${listId}`, { config: { private: false } })
+        // INSERT and UPDATE carry the whole row, so they can be filtered
+        // server-side to this list and arrive ready to apply.
         .on<Item>(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'items', filter: `list_id=eq.${listId}` },
-          handleChange,
+          { event: 'INSERT', schema: 'public', table: 'items', filter: `list_id=eq.${listId}` },
+          handleUpsert,
+        )
+        .on<Item>(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'items', filter: `list_id=eq.${listId}` },
+          handleUpsert,
+        )
+        // DELETE is deliberately NOT filtered. Because RLS is enabled on items,
+        // Supabase reduces the old record to its primary key — list_id is not in
+        // the payload, so a `list_id=eq.…` filter can never match and the event
+        // is simply never delivered. That is why deletes only appeared after a
+        // manual refresh. Subscribing unfiltered and removing by id fixes it;
+        // ids for other households are just UUIDs we do not hold, so they fall
+        // through harmlessly.
+        .on<Item>(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'items' },
+          handleDelete,
         )
         .subscribe((channelStatus) => {
           if (disposed) return

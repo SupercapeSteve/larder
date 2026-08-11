@@ -139,34 +139,95 @@ function splitPhrases(raw: string): string[] {
 
 /* ── Categories (mirrors src/lib/categories.ts) ───────────────────────────── */
 
+// Mirrors src/lib/categories.ts. Kept as a flat list rather than imported
+// because this runs in Deno with no access to the app bundle. Sorted
+// longest-first at module load so "sweet potato" beats "potato" and
+// "cat food" beats "food" without hand-ordering the table.
 const KEYWORDS: Array<[string, string]> = [
-  ['sweet potato', 'Produce'], ['spring onion', 'Produce'], ['peanut butter', 'Pantry'],
-  ['toilet', 'Household'], ['washing up', 'Household'], ['kitchen roll', 'Household'],
-  ['ice cream', 'Frozen'], ['oven chips', 'Frozen'],
-  ['sourdough', 'Bakery'], ['croissant', 'Bakery'], ['baguette', 'Bakery'],
-  ['loaves', 'Bakery'], ['bread', 'Bakery'], ['bagel', 'Bakery'], ['loaf', 'Bakery'],
-  ['roll', 'Bakery'], ['cake', 'Bakery'], ['pastr', 'Bakery'], ['muffin', 'Bakery'],
-  ['yoghurt', 'Dairy'], ['yogurt', 'Dairy'], ['cheese', 'Dairy'], ['butter', 'Dairy'],
-  ['cream', 'Dairy'], ['milk', 'Dairy'], ['egg', 'Dairy'],
-  ['chicken', 'Meat'], ['sausage', 'Meat'], ['salmon', 'Meat'], ['bacon', 'Meat'],
-  ['mince', 'Meat'], ['steak', 'Meat'], ['beef', 'Meat'], ['pork', 'Meat'],
-  ['lamb', 'Meat'], ['fish', 'Meat'], ['ham', 'Meat'],
-  ['potato', 'Produce'], ['tomato', 'Produce'], ['banana', 'Produce'], ['lettuce', 'Produce'],
-  ['carrot', 'Produce'], ['spinach', 'Produce'], ['broccoli', 'Produce'], ['onion', 'Produce'],
-  ['apple', 'Produce'], ['salad', 'Produce'], ['lemon', 'Produce'], ['fruit', 'Produce'],
-  ['pepper', 'Produce'], ['garlic', 'Produce'], ['avocado', 'Produce'],
-  ['frozen', 'Frozen'], ['peas', 'Frozen'],
-  ['shampoo', 'Household'], ['detergent', 'Household'], ['soap', 'Household'],
-  ['tissue', 'Household'], ['bin bag', 'Household'], ['cleaner', 'Household'],
-  ['coffee', 'Pantry'], ['pasta', 'Pantry'], ['rice', 'Pantry'], ['flour', 'Pantry'],
-  ['sugar', 'Pantry'], ['sauce', 'Pantry'], ['cereal', 'Pantry'], ['oil', 'Pantry'],
-  ['beans', 'Pantry'], ['tea', 'Pantry'], ['water', 'Pantry'], ['wine', 'Pantry'],
-  ['beer', 'Pantry'], ['juice', 'Pantry'], ['crisp', 'Pantry'], ['snack', 'Pantry'],
+  // Produce
+  ['sweet potato', 'Produce'], ['spring onion', 'Produce'], ['potato', 'Produce'],
+  ['tomato', 'Produce'], ['banana', 'Produce'], ['lettuce', 'Produce'], ['carrot', 'Produce'],
+  ['spinach', 'Produce'], ['broccoli', 'Produce'], ['onion', 'Produce'], ['apple', 'Produce'],
+  ['salad', 'Produce'], ['lemon', 'Produce'], ['lime', 'Produce'], ['fruit', 'Produce'],
+  ['pepper', 'Produce'], ['garlic', 'Produce'], ['avocado', 'Produce'], ['cucumber', 'Produce'],
+  ['mushroom', 'Produce'], ['courgette', 'Produce'], ['cabbage', 'Produce'], ['grape', 'Produce'],
+  ['berries', 'Produce'], ['strawberr', 'Produce'], ['orange', 'Produce'], ['veg', 'Produce'],
+  // Bakery
+  ['sourdough', 'Bakery'], ['croissant', 'Bakery'], ['baguette', 'Bakery'], ['loaves', 'Bakery'],
+  ['bread', 'Bakery'], ['bagel', 'Bakery'], ['loaf', 'Bakery'], ['roll', 'Bakery'],
+  ['cake', 'Bakery'], ['pastr', 'Bakery'], ['muffin', 'Bakery'], ['tortilla', 'Bakery'],
+  ['crumpet', 'Bakery'], ['pitta', 'Bakery'],
+  // Deli
+  ['prosciutto', 'Deli'], ['charcuterie', 'Deli'], ['pepperoni', 'Deli'], ['chorizo', 'Deli'],
+  ['hummus', 'Deli'], ['houmous', 'Deli'], ['salami', 'Deli'], ['olive', 'Deli'], ['deli', 'Deli'],
+  ['coleslaw', 'Deli'], ['sushi', 'Deli'],
+  // Dairy
+  ['creme fraiche', 'Dairy'], ['mozzarella', 'Dairy'], ['parmesan', 'Dairy'],
+  ['mascarpone', 'Dairy'], ['halloumi', 'Dairy'], ['oat milk', 'Dairy'], ['soy milk', 'Dairy'],
+  ['yoghurt', 'Dairy'], ['yogurt', 'Dairy'], ['cheddar', 'Dairy'], ['ricotta', 'Dairy'],
+  ['cheese', 'Dairy'], ['butter', 'Dairy'], ['cream', 'Dairy'], ['milk', 'Dairy'],
+  ['egg', 'Dairy'], ['feta', 'Dairy'], ['brie', 'Dairy'],
+  // Meat
+  ['chicken', 'Meat'], ['sausage', 'Meat'], ['bacon', 'Meat'], ['mince', 'Meat'],
+  ['steak', 'Meat'], ['beef', 'Meat'], ['pork', 'Meat'], ['lamb', 'Meat'], ['turkey', 'Meat'],
+  ['gammon', 'Meat'], ['burger', 'Meat'], ['ham', 'Meat'], ['duck', 'Meat'], ['meat', 'Meat'],
+  // Seafood
+  ['seafood', 'Seafood'], ['mackerel', 'Seafood'], ['sardine', 'Seafood'], ['scallop', 'Seafood'],
+  ['haddock', 'Seafood'], ['salmon', 'Seafood'], ['mussel', 'Seafood'], ['shrimp', 'Seafood'],
+  ['oyster', 'Seafood'], ['prawn', 'Seafood'], ['trout', 'Seafood'], ['tuna', 'Seafood'],
+  ['crab', 'Seafood'], ['cod', 'Seafood'], ['fish', 'Seafood'],
+  // Frozen
+  ['oven chips', 'Frozen'], ['ice cream', 'Frozen'], ['ice lolly', 'Frozen'],
+  ['frozen', 'Frozen'], ['sorbet', 'Frozen'], ['gelato', 'Frozen'], ['peas', 'Frozen'],
+  // Pantry
+  ['peanut butter', 'Pantry'], ['baking powder', 'Pantry'], ['stock cube', 'Pantry'],
+  ['mayonnaise', 'Pantry'], ['soy sauce', 'Pantry'], ['couscous', 'Pantry'], ['lentil', 'Pantry'],
+  ['vinegar', 'Pantry'], ['chickpea', 'Pantry'], ['granola', 'Pantry'], ['ketchup', 'Pantry'],
+  ['mustard', 'Pantry'], ['noodle', 'Pantry'], ['quinoa', 'Pantry'], ['cereal', 'Pantry'],
+  ['muesli', 'Pantry'], ['honey', 'Pantry'], ['pasta', 'Pantry'], ['flour', 'Pantry'],
+  ['sugar', 'Pantry'], ['sauce', 'Pantry'], ['pesto', 'Pantry'], ['beans', 'Pantry'],
+  ['bean', 'Pantry'], ['rice', 'Pantry'], ['soup', 'Pantry'], ['salt', 'Pantry'],
+  ['oats', 'Pantry'], ['oat', 'Pantry'], ['oil', 'Pantry'], ['jam', 'Pantry'],
+  // Snacks
+  ['chocolate', 'Snacks'], ['crackers', 'Snacks'], ['popcorn', 'Snacks'], ['biscuit', 'Snacks'],
+  ['pretzel', 'Snacks'], ['sweets', 'Snacks'], ['crisp', 'Snacks'], ['snack', 'Snacks'],
+  ['candy', 'Snacks'], ['nuts', 'Snacks'],
+  // Drinks
+  ['sparkling water', 'Drinks'], ['energy drink', 'Drinks'], ['lemonade', 'Drinks'],
+  ['kombucha', 'Drinks'], ['smoothie', 'Drinks'], ['cordial', 'Drinks'], ['coffee', 'Drinks'],
+  ['juice', 'Drinks'], ['water', 'Drinks'], ['soda', 'Drinks'], ['cola', 'Drinks'],
+  ['tea', 'Drinks'],
+  // Alcohol
+  ['prosecco', 'Alcohol'], ['whiskey', 'Alcohol'], ['tequila', 'Alcohol'], ['whisky', 'Alcohol'],
+  ['brandy', 'Alcohol'], ['spirits', 'Alcohol'], ['cider', 'Alcohol'], ['lager', 'Alcohol'],
+  ['vodka', 'Alcohol'], ['beer', 'Alcohol'], ['wine', 'Alcohol'], ['gin', 'Alcohol'],
+  ['rum', 'Alcohol'], ['ale', 'Alcohol'],
+  // Health
+  ['paracetamol', 'Health'], ['multivitamin', 'Health'], ['ibuprofen', 'Health'],
+  ['sunscreen', 'Health'], ['supplement', 'Health'], ['bandage', 'Health'], ['plaster', 'Health'],
+  ['tampon', 'Health'], ['vitamin', 'Health'], ['aspirin', 'Health'], ['condom', 'Health'],
+  // Baby
+  ['baby wipe', 'Baby'], ['baby food', 'Baby'], ['formula', 'Baby'], ['nappies', 'Baby'],
+  ['nappy', 'Baby'], ['dummy', 'Baby'],
+  // Pets
+  ['cat litter', 'Pets'], ['dog treat', 'Pets'], ['cat food', 'Pets'], ['dog food', 'Pets'],
+  ['pet food', 'Pets'], ['kibble', 'Pets'], ['litter', 'Pets'],
+  // Household
+  ['toilet paper', 'Household'], ['kitchen roll', 'Household'], ['toothpaste', 'Household'],
+  ['toothbrush', 'Household'], ['washing up', 'Household'], ['dishwasher', 'Household'],
+  ['detergent', 'Household'], ['deodorant', 'Household'], ['clingfilm', 'Household'],
+  ['lightbulb', 'Household'], ['shower gel', 'Household'], ['shampoo', 'Household'],
+  ['bin liner', 'Household'], ['conditioner', 'Household'], ['bin bag', 'Household'],
+  ['cleaner', 'Household'], ['laundry', 'Household'], ['tissue', 'Household'],
+  ['toilet', 'Household'], ['sponge', 'Household'], ['bleach', 'Household'],
+  ['razor', 'Household'], ['wipes', 'Household'], ['soap', 'Household'], ['foil', 'Household'],
 ]
+
+const SORTED_KEYWORDS = [...KEYWORDS].sort((a, b) => b[0].length - a[0].length)
 
 function categorise(name: string): string {
   const haystack = name.toLowerCase()
-  for (const [keyword, category] of KEYWORDS) {
+  for (const [keyword, category] of SORTED_KEYWORDS) {
     if (haystack.includes(keyword)) return category
   }
   return 'Other'

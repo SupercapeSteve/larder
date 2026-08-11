@@ -25,11 +25,24 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* iOS zooms the viewport when a focused input has font-size < 16px. */
+  /* Root font size drives every rem-based utility, so the text-size preference
+     scales the whole interface rather than one label at a time. */
+  html.text-size-normal {
+    font-size: 16px;
+  }
+  html.text-size-large {
+    font-size: 18px;
+  }
+  html.text-size-x-large {
+    font-size: 20px;
+  }
+
+  /* iOS zooms the viewport when a focused input has font-size < 16px, so this
+     tracks the user's choice upward but never drops below the safe floor. */
   input,
   textarea,
   select {
-    font-size: 16px;
+    font-size: max(16px, 1rem);
   }
 
   :focus-visible {

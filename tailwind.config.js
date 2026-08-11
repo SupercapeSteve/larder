@@ -1,7 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
-  darkMode: 'media',
+  // Class-based, not media: the user can override the OS from Settings, and
+  // PreferencesProvider is what toggles `dark` on <html>.
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {

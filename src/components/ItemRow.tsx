@@ -1,5 +1,6 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { Check, MoreHorizontal, Trash2 } from 'lucide-react'
+import { useHaptic, usePreferences } from '@/hooks/usePreferences'
 import type { Item } from '@/types/database'
 
 const SWIPE_TRIGGER_PX = 80
@@ -17,6 +18,8 @@ type ItemRowProps = {
 }
 
 export function ItemRow({ item, nameFor, onToggle, onEdit, onDelete }: ItemRowProps) {
+  const { preferences } = usePreferences()
+  const haptic = useHaptic()
   const [offset, setOffset] = useState(0)
   const [swiping, setSwiping] = useState(false)
   const start = useRef<{ x: number; y: number } | null>(null)
@@ -51,7 +54,7 @@ export function ItemRow({ item, nameFor, onToggle, onEdit, onDelete }: ItemRowPr
       gestureHandled.current = true
       longPressTimer.current = null
       // A press that turns into an edit should feel like something happened.
-      if ('vibrate' in navigator) navigator.vibrate?.(10)
+      haptic()
       onEdit(item)
     }, LONG_PRESS_MS)
   }
@@ -99,7 +102,10 @@ export function ItemRow({ item, nameFor, onToggle, onEdit, onDelete }: ItemRowPr
 
     const dx = Math.abs(event.clientX - origin.x)
     const dy = Math.abs(event.clientY - origin.y)
-    if (dx <= MOVE_TOLERANCE_PX && dy <= MOVE_TOLERANCE_PX) onToggle(item)
+    if (dx <= MOVE_TOLERANCE_PX && dy <= MOVE_TOLERANCE_PX) {
+      haptic(8)
+      onToggle(item)
+    }
   }
 
   function onPointerCancel() {
@@ -111,7 +117,13 @@ export function ItemRow({ item, nameFor, onToggle, onEdit, onDelete }: ItemRowPr
 
   const addedBy = nameFor(item.added_by)
   const checkedBy = nameFor(item.checked_by)
-  const attribution = item.checked && checkedBy ? `Checked by ${checkedBy}` : addedBy ? `Added by ${addedBy}` : null
+  const attribution = !preferences.showAttribution
+    ? null
+    : item.checked && checkedBy
+      ? `Checked by ${checkedBy}`
+      : addedBy
+        ? `Added by ${addedBy}`
+        : null
 
   return (
     <li className="relative overflow-hidden">
@@ -139,6 +151,7 @@ export function ItemRow({ item, nameFor, onToggle, onEdit, onDelete }: ItemRowPr
           type="button"
           onClick={(event) => {
             event.stopPropagation()
+            haptic(8)
             onToggle(item)
           }}
           aria-pressed={item.checked}

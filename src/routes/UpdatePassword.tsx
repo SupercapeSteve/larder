@@ -2,7 +2,12 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AuthLayout } from '@/components/AuthLayout'
 import { ErrorBanner, FullPageSpinner, SubmitButton, SuccessBanner, TextField } from '@/components/ui'
-import { MIN_PASSWORD_LENGTH, consumeRecoveryLink, updatePassword, validatePassword } from '@/lib/auth'
+import {
+  MIN_PASSWORD_LENGTH,
+  consumeAuthTokensFromUrl,
+  updatePassword,
+  validatePassword,
+} from '@/lib/auth'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function UpdatePassword() {
@@ -22,7 +27,7 @@ export default function UpdatePassword() {
   // the one place that opts in.
   useEffect(() => {
     let active = true
-    consumeRecoveryLink().then((result) => {
+    consumeAuthTokensFromUrl().then((result) => {
       if (!active) return
       if (!result.ok) {
         setLinkError(result.message)

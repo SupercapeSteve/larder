@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Home, LogOut, Users } from 'lucide-react'
 import { AuthLayout } from '@/components/AuthLayout'
 import { ErrorBanner, SubmitButton, TextField } from '@/components/ui'
-import { useCreateHousehold, useJoinHousehold } from '@/hooks/useHouseholds'
+import { useCreateHousehold, useHouseholds, useJoinHousehold } from '@/hooks/useHouseholds'
 import { useProfile } from '@/hooks/useAuth'
 import { signOut } from '@/lib/auth'
 
@@ -15,8 +15,13 @@ export default function Setup() {
   const navigate = useNavigate()
   const [mode, setMode] = useState<Mode>('choose')
   const { data: profile } = useProfile()
+  const { data: households } = useHouseholds()
 
   const firstName = profile?.display_name.split(' ')[0]
+  // Reached from Settings → Switch household → Create or join another. Someone
+  // who already belongs to a household must be able to change their mind; with
+  // no way back this screen was a dead end whose only exit was signing out.
+  const hasHouseholds = (households ?? []).length > 0
 
   if (mode === 'create') return <CreateHousehold onBack={() => setMode('choose')} />
   if (mode === 'join') return <JoinHousehold onBack={() => setMode('choose')} />
@@ -24,7 +29,13 @@ export default function Setup() {
   return (
     <AuthLayout
       title={firstName ? `Hi, ${firstName}` : 'One more step'}
-      subtitle="Start a household, or join the one you've been invited to."
+      subtitle={
+        hasHouseholds
+          ? 'Start another household, or join one with a code.'
+          : "Start a household, or join the one you've been invited to."
+      }
+      onBack={hasHouseholds ? () => navigate(-1) : undefined}
+      backLabel="Back"
     >
       <div className="space-y-3">
         <button
@@ -55,17 +66,24 @@ export default function Setup() {
           </span>
         </button>
 
-        <button
-          type="button"
-          onClick={async () => {
-            await signOut()
-            navigate('/signin', { replace: true })
-          }}
-          className="btn-ghost w-full gap-2 text-sm"
-        >
-          <LogOut className="h-4 w-4" aria-hidden />
-          Sign out
-        </button>
+        {hasHouseholds ? (
+          <Link to="/households" className="btn-ghost w-full gap-2 text-sm">
+            <Users className="h-4 w-4" aria-hidden />
+            Back to my households
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={async () => {
+              await signOut()
+              navigate('/signin', { replace: true })
+            }}
+            className="btn-ghost w-full gap-2 text-sm"
+          >
+            <LogOut className="h-4 w-4" aria-hidden />
+            Sign out
+          </button>
+        )}
       </div>
     </AuthLayout>
   )

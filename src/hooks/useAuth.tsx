@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { qk } from '@/lib/queryClient'
 import { authErrorMessage } from '@/lib/authErrors'
@@ -138,6 +138,42 @@ export function useProfile() {
         .maybeSingle()
       if (error) throw error
       return data
+    },
+  })
+}
+
+/**
+ * Rename yourself. The display name is what housemates see next to every item
+ * you add, so it is worth being able to change without making a new account.
+ */
+export function useUpdateDisplayName() {
+  const user = useUser()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (displayName: string): Promise<Profile> => {
+      if (!user) throw new Error('Your session expired. Sign in again.')
+
+      const trimmed = displayName.trim()
+      if (trimmed.length === 0) throw new Error('Your name can’t be empty.')
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ display_name: trimmed.slice(0, 60) })
+        .eq('id', user.id)
+        .select('*')
+        .single()
+      if (error) throw new Error(authErrorMessage(error))
+
+      // Keep the sign-up metadata in step, so a future trigger run agrees.
+      await supabase.auth.updateUser({ data: { display_name: trimmed.slice(0, 60) } })
+
+      return data
+    },
+    onSuccess: (profile) => {
+      queryClient.setQueryData(qk.profile(profile.id), profile)
+      // Attribution across the app reads from the members list.
+      void queryClient.invalidateQueries({ queryKey: ['members'] })
     },
   })
 }

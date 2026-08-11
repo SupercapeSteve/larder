@@ -4,15 +4,27 @@
  * No cleverness on purpose: a lookup table is predictable, instant, works
  * offline, and is trivially correctable by the user when it guesses wrong.
  * Anything it doesn't recognise falls to Other, which is a fine answer.
+ *
+ * The original eight names are kept verbatim. `items.category` is free text, so
+ * renaming one would strand every item already filed under it — they would all
+ * silently reappear in Other. New aisles are only ever added, never renamed.
  */
 
 export const CATEGORIES = [
   'Produce',
+  'Bakery',
+  'Deli',
   'Dairy',
   'Meat',
-  'Bakery',
+  'Seafood',
   'Frozen',
   'Pantry',
+  'Snacks',
+  'Drinks',
+  'Alcohol',
+  'Health',
+  'Baby',
+  'Pets',
   'Household',
   'Other',
 ] as const
@@ -25,78 +37,148 @@ export const DEFAULT_CATEGORY: Category = 'Other'
 export const CATEGORY_ORDER: Record<Category, number> = {
   Produce: 0,
   Bakery: 1,
-  Dairy: 2,
-  Meat: 3,
-  Frozen: 4,
-  Pantry: 5,
-  Household: 6,
-  Other: 7,
+  Deli: 2,
+  Dairy: 3,
+  Meat: 4,
+  Seafood: 5,
+  Frozen: 6,
+  Pantry: 7,
+  Snacks: 8,
+  Drinks: 9,
+  Alcohol: 10,
+  Health: 11,
+  Baby: 12,
+  Pets: 13,
+  Household: 14,
+  Other: 15,
 }
 
 export const CATEGORY_EMOJI: Record<Category, string> = {
   Produce: '🥬',
   Bakery: '🥖',
+  Deli: '🧆',
   Dairy: '🧀',
   Meat: '🥩',
+  Seafood: '🐟',
   Frozen: '🧊',
   Pantry: '🥫',
+  Snacks: '🍫',
+  Drinks: '🧃',
+  Alcohol: '🍷',
+  Health: '💊',
+  Baby: '🍼',
+  Pets: '🐾',
   Household: '🧼',
   Other: '🛒',
+}
+
+/** Spoken/written descriptions, used for screen-reader labels. */
+export const CATEGORY_DESCRIPTION: Record<Category, string> = {
+  Produce: 'Fruit and vegetables',
+  Bakery: 'Bread and baked goods',
+  Deli: 'Deli counter',
+  Dairy: 'Dairy and eggs',
+  Meat: 'Meat and poultry',
+  Seafood: 'Fish and seafood',
+  Frozen: 'Frozen food',
+  Pantry: 'Cupboard and dry goods',
+  Snacks: 'Snacks and confectionery',
+  Drinks: 'Soft drinks, tea and coffee',
+  Alcohol: 'Beer, wine and spirits',
+  Health: 'Health and pharmacy',
+  Baby: 'Baby and infant',
+  Pets: 'Pet supplies',
+  Household: 'Household and cleaning',
+  Other: 'Everything else',
 }
 
 const KEYWORDS: Record<Exclude<Category, 'Other'>, readonly string[]> = {
   Produce: [
     'apple', 'apricot', 'artichoke', 'asparagus', 'aubergine', 'avocado', 'banana', 'basil',
-    'beetroot', 'berries', 'blackberr', 'blueberr', 'broccoli', 'cabbage', 'carrot', 'cauliflower',
-    'celery', 'cherr', 'chilli', 'chili', 'coriander', 'corn', 'courgette', 'cucumber', 'date',
-    'eggplant', 'fennel', 'fruit', 'garlic', 'ginger', 'grape', 'greens', 'herb', 'kale', 'kiwi',
-    'leek', 'lemon', 'lettuce', 'lime', 'mango', 'melon', 'mint', 'mushroom', 'nectarine', 'olive',
-    'onion', 'orange', 'parsley', 'parsnip', 'peach', 'pear', 'pepper', 'pineapple', 'plum',
-    'potato', 'pumpkin', 'radish', 'raspberr', 'rhubarb', 'rocket', 'rosemary', 'salad', 'shallot',
-    'spinach', 'spring onion', 'sprout', 'squash', 'strawberr', 'sweetcorn', 'sweet potato',
-    'thyme', 'tomato', 'turnip', 'veg', 'watermelon', 'zucchini',
-  ],
-  Dairy: [
-    'butter', 'buttermilk', 'brie', 'cheddar', 'cheese', 'cream', 'creme fraiche', 'crème fraîche',
-    'custard', 'dairy', 'egg', 'feta', 'ghee', 'goat cheese', 'halloumi', 'kefir', 'margarine',
-    'mascarpone', 'milk', 'mozzarella', 'oat milk', 'parmesan', 'ricotta', 'skyr', 'sour cream',
-    'soy milk', 'yoghurt', 'yogurt',
-  ],
-  Meat: [
-    'anchov', 'bacon', 'beef', 'brisket', 'burger', 'chicken', 'chorizo', 'cod', 'duck', 'fish',
-    'gammon', 'ham', 'haddock', 'lamb', 'liver', 'mackerel', 'meat', 'mince', 'mussels', 'pancetta',
-    'pork', 'prawn', 'prosciutto', 'salami', 'salmon', 'sardine', 'sausage', 'scallop', 'seafood',
-    'shrimp', 'steak', 'tuna', 'turkey', 'veal', 'venison',
+    'beetroot', 'berries', 'blackberr', 'blueberr', 'broccoli', 'brussels', 'cabbage', 'carrot',
+    'cauliflower', 'celery', 'cherr', 'chilli', 'chili', 'coriander', 'courgette', 'cranberr',
+    'cucumber', 'date', 'eggplant', 'fennel', 'fig', 'fruit', 'garlic', 'ginger', 'grape',
+    'greens', 'herb', 'kale', 'kiwi', 'leek', 'lemon', 'lettuce', 'lime', 'mango', 'melon',
+    'mint', 'mushroom', 'nectarine', 'onion', 'orange', 'parsley', 'parsnip', 'peach', 'pear',
+    'pepper', 'pineapple', 'plum', 'pomegranate', 'potato', 'pumpkin', 'radish', 'raspberr',
+    'rhubarb', 'rocket', 'rosemary', 'salad', 'shallot', 'spinach', 'spring onion', 'sprout',
+    'squash', 'strawberr', 'sweetcorn', 'sweet potato', 'thyme', 'tomato', 'turnip', 'veg',
+    'watermelon', 'zucchini',
   ],
   Bakery: [
-    'bagel', 'baguette', 'bap', 'biscuit', 'bread', 'brioche', 'bun', 'cake', 'ciabatta',
-    'croissant', 'crumpet', 'danish', 'doughnut', 'donut', 'flatbread', 'focaccia', 'loaf',
-    'loaves', 'muffin', 'naan', 'pastr', 'pain au chocolat', 'pitta', 'pita', 'roll', 'scone',
+    'bagel', 'baguette', 'bap', 'bread', 'brioche', 'bun', 'cake', 'ciabatta', 'croissant',
+    'crumpet', 'danish', 'doughnut', 'donut', 'flatbread', 'focaccia', 'loaf', 'loaves',
+    'muffin', 'naan', 'pain au chocolat', 'pastr', 'pitta', 'pita', 'roll', 'scone',
     'sourdough', 'tortilla', 'wrap',
   ],
+  Deli: [
+    'antipasti', 'charcuterie', 'chorizo', 'coleslaw', 'deli', 'hummus', 'houmous', 'olive',
+    'pancetta', 'pastrami', 'pate', 'pâté', 'pepperoni', 'prosciutto', 'salami', 'sushi',
+    'tzatziki',
+  ],
+  Dairy: [
+    'brie', 'butter', 'buttermilk', 'cheddar', 'cheese', 'cream', 'creme fraiche',
+    'crème fraîche', 'custard', 'dairy', 'egg', 'feta', 'ghee', 'goat cheese', 'halloumi',
+    'kefir', 'margarine', 'mascarpone', 'milk', 'mozzarella', 'oat milk', 'parmesan',
+    'ricotta', 'skyr', 'sour cream', 'soy milk', 'yoghurt', 'yogurt',
+  ],
+  Meat: [
+    'bacon', 'beef', 'brisket', 'burger', 'chicken', 'duck', 'gammon', 'ham', 'lamb', 'liver',
+    'meat', 'mince', 'pork', 'sausage', 'steak', 'turkey', 'veal', 'venison',
+  ],
+  Seafood: [
+    'anchov', 'calamari', 'clam', 'cod', 'crab', 'fish', 'haddock', 'halibut', 'kipper',
+    'lobster', 'mackerel', 'mussel', 'oyster', 'prawn', 'salmon', 'sardine', 'scallop',
+    'seafood', 'shrimp', 'squid', 'trout', 'tuna',
+  ],
   Frozen: [
-    'frozen', 'gelato', 'ice cream', 'ice lolly', 'ice pop', 'icecream', 'oven chips', 'peas',
+    'frozen', 'gelato', 'ice cream', 'ice lolly', 'ice pop', 'icecream', 'oven chips',
     'popsicle', 'sorbet', 'waffle',
   ],
   Pantry: [
-    'baking powder', 'bean', 'biscuits', 'cereal', 'chickpea', 'chocolate', 'cocoa', 'coffee',
-    'cordial', 'couscous', 'crackers', 'crisps', 'curry paste', 'flour', 'granola', 'honey', 'jam',
-    'juice', 'ketchup', 'lentil', 'mayo', 'mayonnaise', 'muesli', 'mustard', 'noodle', 'nut',
-    'oat', 'oil', 'pasta', 'peanut butter', 'pesto', 'porridge', 'rice', 'salt', 'sauce', 'soup',
-    'spice', 'stock', 'sugar', 'sweetcorn tin', 'syrup', 'tea', 'tinned', 'tomato puree', 'tuna tin',
-    'vinegar', 'water', 'wine', 'beer', 'crisp', 'snack', 'stock cube', 'soy sauce',
+    'baking powder', 'bean', 'bicarb', 'breadcrumb', 'cereal', 'chickpea', 'cocoa', 'couscous',
+    'curry paste', 'flour', 'granola', 'gravy', 'honey', 'jam', 'ketchup', 'lentil',
+    'marmalade', 'mayo', 'mayonnaise', 'muesli', 'mustard', 'noodle', 'oat', 'oil', 'pasta',
+    'peanut butter', 'pesto', 'porridge', 'quinoa', 'rice', 'salt', 'sauce', 'soup',
+    'soy sauce', 'spice', 'stock cube', 'stock', 'sugar', 'syrup', 'tinned', 'tomato puree',
+    'vinegar', 'yeast',
+  ],
+  Snacks: [
+    'biscuit', 'candy', 'chocolate', 'crackers', 'crisp', 'flapjack', 'nut', 'popcorn',
+    'pretzel', 'raisin', 'snack', 'sweets', 'trail mix',
+  ],
+  Drinks: [
+    'coffee', 'cordial', 'juice', 'kombucha', 'lemonade', 'squash drink', 'tea', 'water',
+    'soda', 'cola', 'smoothie', 'energy drink', 'sparkling water',
+  ],
+  Alcohol: [
+    'ale', 'beer', 'brandy', 'cider', 'gin', 'lager', 'prosecco', 'rum', 'spirits', 'tequila',
+    'vodka', 'whisky', 'whiskey', 'wine',
+  ],
+  Health: [
+    'aspirin', 'bandage', 'condom', 'ibuprofen', 'multivitamin', 'painkiller', 'paracetamol',
+    'plaster', 'sunscreen', 'supplement', 'tampon', 'throat lozenge', 'vitamin',
+  ],
+  Baby: [
+    'baby food', 'baby wipe', 'bib', 'dummy', 'formula', 'nappies', 'nappy', 'pacifier',
+    'teething',
+  ],
+  Pets: [
+    'cat food', 'cat litter', 'dog food', 'dog treat', 'kibble', 'litter', 'pet food',
+    'pet treat',
   ],
   Household: [
-    'batter', 'bin bag', 'bleach', 'body wash', 'cleaner', 'clingfilm', 'conditioner', 'cotton',
-    'deodorant', 'detergent', 'dishwasher', 'floss', 'foil', 'kitchen roll', 'laundry', 'lightbulb',
-    'match', 'nappies', 'nappy', 'paper towel', 'razor', 'shampoo', 'shower gel', 'soap', 'sponge',
-    'tissue', 'toilet', 'toothbrush', 'toothpaste', 'washing up', 'washing-up', 'wipes',
+    'air freshener', 'bin bag', 'bin liner', 'bleach', 'body wash', 'cleaner', 'clingfilm',
+    'conditioner', 'cotton', 'deodorant', 'detergent', 'dishwasher', 'floss', 'foil',
+    'kitchen roll', 'laundry', 'lightbulb', 'match', 'paper towel', 'razor', 'shampoo',
+    'shower gel', 'soap', 'sponge', 'tissue', 'toilet', 'toothbrush', 'toothpaste',
+    'washing up', 'washing-up', 'wipes',
   ],
 }
 
 /**
- * Longest keyword first, so "sweet potato" wins over "potato" and
- * "peanut butter" is Pantry rather than Dairy.
+ * Longest keyword first, so "sweet potato" wins over "potato", "peanut butter"
+ * lands in Pantry rather than Dairy, and "cat food" beats "food".
  */
 const INDEX: ReadonlyArray<readonly [string, Category]> = Object.entries(KEYWORDS)
   .flatMap(([category, words]) => words.map((word) => [word, category as Category] as const))

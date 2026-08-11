@@ -27,12 +27,32 @@
       html {
         background: #f2f8f4;
       }
-      @media (prefers-color-scheme: dark) {
-        html {
-          background: #0e2117;
-        }
+      html.dark {
+        background: #0e2117;
       }
     </style>
+
+    <script>
+      // Runs before first paint so the saved theme and text size are already
+      // applied. Without it there is a visible flash of the wrong theme on
+      // every cold start, which is especially ugly in standalone mode.
+      ;(function () {
+        try {
+          var raw = localStorage.getItem('larder.preferences')
+          var prefs = raw ? JSON.parse(raw) : {}
+          var theme = prefs.theme || 'system'
+          var size = prefs.textSize || 'normal'
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+          var dark = theme === 'dark' || (theme === 'system' && prefersDark)
+          var root = document.documentElement
+          root.classList.toggle('dark', dark)
+          root.classList.add('text-size-' + size)
+          root.style.colorScheme = dark ? 'dark' : 'light'
+        } catch (e) {
+          /* Private mode or corrupt value — fall back to the CSS defaults. */
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

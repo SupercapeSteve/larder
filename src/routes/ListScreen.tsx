@@ -22,7 +22,14 @@ import {
   type ItemEdits,
 } from '@/hooks/useItems'
 import { useRealtimeItems } from '@/hooks/useRealtimeItems'
-import { CATEGORY_EMOJI, CATEGORY_ORDER, toCategory, type Category } from '@/lib/categories'
+import { usePreferences } from '@/hooks/usePreferences'
+import {
+  CATEGORY_DESCRIPTION,
+  CATEGORY_EMOJI,
+  CATEGORY_ORDER,
+  toCategory,
+  type Category,
+} from '@/lib/categories'
 import { LAST_HOUSEHOLD_KEY, writeLocal } from '@/lib/storage'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Item } from '@/types/database'
@@ -31,9 +38,11 @@ export default function ListScreen() {
   const { householdId } = useParams<{ householdId: string }>()
   const queryClient = useQueryClient()
   const { showToast } = useToast()
+  const { preferences } = usePreferences()
 
   const householdsQuery = useHouseholds()
-  const { list, isPending: listPending } = useDefaultList(householdId)
+  const listQuery = useDefaultList(householdId)
+  const list = listQuery.list
   const membersQuery = useMembers(householdId)
   const itemsQuery = useItems(list?.id)
   const { status: connection } = useRealtimeItems(list?.id)
@@ -65,7 +74,11 @@ export default function ListScreen() {
   }, [membersQuery.data])
 
   const items = itemsQuery.data ?? []
-  const { groups, checkedItems } = useMemo(() => groupItems(items), [items])
+  const { groups, checkedItems, flat } = useMemo(
+    () => arrangeItems(items, preferences.groupByCategory, preferences.autoCollapseChecked),
+    [items, preferences.groupByCategory, preferences.autoCollapseChecked],
+  )
+  const outstanding = items.filter((i) => !i.checked).length
 
   function toggleCollapsed(key: string) {
     setCollapsed((prev) => {
@@ -148,7 +161,7 @@ export default function ListScreen() {
       <Link
         to="/account"
         className="tap -mr-2 rounded-xl text-larder-600 dark:text-larder-400"
-        aria-label="Your account"
+        aria-label="Your settings"
       >
         <UserCircle2 className="h-5 w-5" aria-hidden />
       </Link>
@@ -157,7 +170,13 @@ export default function ListScreen() {
 
   const footer = <AddItemBar onAdd={onAdd} disabled={!listId} />
 
-  if (listPending || itemsQuery.isPending) {
+  // One gate for the whole screen. Members resolve alongside items, so
+  // attribution is present on first paint instead of popping in a beat later
+  // and reflowing every row.
+  const stillLoading =
+    householdsQuery.isPending || listQuery.isPending || itemsQuery.isPending || membersQuery.isPending
+
+  if (stillLoading) {
     return (
       <AppShell header={header} footer={footer}>
         <ListSkeleton />
@@ -177,59 +196,99 @@ export default function ListScreen() {
     )
   }
 
+  const clearButton =
+    checkedItems.length > 0 || items.some((i) => i.checked) ? (
+      <button
+        type="button"
+        onClick={() => setConfirmClear(true)}
+        className="tap gap-1.5 rounded-xl px-2 text-xs font-medium text-larder-600 hover:text-red-600 dark:text-larder-400 dark:hover:text-red-400"
+      >
+        <Trash2 className="h-3.5 w-3.5" aria-hidden />
+        Clear checked
+      </button>
+    ) : null
+
   return (
     <AppShell header={header} footer={footer}>
+      {/* Announced on change, so a screen-reader user hears the list shrink as
+          they shop without having to re-read the whole thing. */}
+      <p className="sr-only" aria-live="polite">
+        {outstanding === 0
+          ? 'Nothing left to get.'
+          : `${outstanding} ${outstanding === 1 ? 'item' : 'items'} still to get.`}
+      </p>
+
       {items.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="space-y-4 py-4 pb-8">
-          {groups.map(([category, categoryItems]) => {
-            const isCollapsed = collapsed.has(category)
-            return (
-              <section key={category} aria-labelledby={`cat-${category}`}>
-                <button
-                  type="button"
-                  onClick={() => toggleCollapsed(category)}
-                  aria-expanded={!isCollapsed}
-                  aria-controls={`cat-panel-${category}`}
-                  className="tap flex w-full items-center justify-between rounded-xl px-1 text-left"
-                >
-                  <span
-                    id={`cat-${category}`}
-                    className="flex items-center gap-2 text-sm font-semibold text-larder-800 dark:text-larder-200"
+          {preferences.groupByCategory ? (
+            groups.map(([category, categoryItems]) => {
+              const isCollapsed = collapsed.has(category)
+              return (
+                <section key={category} aria-labelledby={`cat-${category}`}>
+                  <button
+                    type="button"
+                    onClick={() => toggleCollapsed(category)}
+                    aria-expanded={!isCollapsed}
+                    aria-controls={`cat-panel-${category}`}
+                    className="tap flex w-full items-center justify-between rounded-xl px-1 text-left"
                   >
-                    <span aria-hidden>{CATEGORY_EMOJI[category]}</span>
-                    {category}
-                    <span className="font-normal text-larder-500">{categoryItems.length}</span>
-                  </span>
-                  <ChevronDown
-                    className={`h-4 w-4 text-larder-500 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
-                    aria-hidden
+                    <span
+                      id={`cat-${category}`}
+                      className="flex items-center gap-2 text-sm font-semibold text-larder-800 dark:text-larder-200"
+                    >
+                      {preferences.showEmoji ? <span aria-hidden>{CATEGORY_EMOJI[category]}</span> : null}
+                      {category}
+                      <span className="sr-only">, {CATEGORY_DESCRIPTION[category]},</span>
+                      <span className="font-normal text-larder-500">{categoryItems.length}</span>
+                    </span>
+                    <ChevronDown
+                      className={`h-4 w-4 text-larder-500 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
+                      aria-hidden
+                    />
+                  </button>
+
+                  {!isCollapsed ? (
+                    <ul
+                      id={`cat-panel-${category}`}
+                      aria-label={category}
+                      className="card mt-1.5 divide-y divide-larder-100 overflow-hidden dark:divide-larder-800"
+                    >
+                      {categoryItems.map((item) => (
+                        <ItemRow
+                          key={item.id}
+                          item={item}
+                          nameFor={nameFor}
+                          onToggle={(i) => toggleItem.mutate({ item: i, checked: !i.checked })}
+                          onEdit={setEditing}
+                          onDelete={onDelete}
+                        />
+                      ))}
+                    </ul>
+                  ) : null}
+                </section>
+              )
+            })
+          ) : (
+            <section aria-label="Shopping list">
+              {clearButton ? <div className="mb-1.5 flex justify-end px-1">{clearButton}</div> : null}
+              <ul className="card divide-y divide-larder-100 overflow-hidden dark:divide-larder-800">
+                {flat.map((item) => (
+                  <ItemRow
+                    key={item.id}
+                    item={item}
+                    nameFor={nameFor}
+                    onToggle={(i) => toggleItem.mutate({ item: i, checked: !i.checked })}
+                    onEdit={setEditing}
+                    onDelete={onDelete}
                   />
-                </button>
+                ))}
+              </ul>
+            </section>
+          )}
 
-                {!isCollapsed ? (
-                  <ul
-                    id={`cat-panel-${category}`}
-                    className="card mt-1.5 divide-y divide-larder-100 overflow-hidden dark:divide-larder-800"
-                  >
-                    {categoryItems.map((item) => (
-                      <ItemRow
-                        key={item.id}
-                        item={item}
-                        nameFor={nameFor}
-                        onToggle={(i) => toggleItem.mutate({ item: i, checked: !i.checked })}
-                        onEdit={setEditing}
-                        onDelete={onDelete}
-                      />
-                    ))}
-                  </ul>
-                ) : null}
-              </section>
-            )
-          })}
-
-          {checkedItems.length > 0 ? (
+          {preferences.groupByCategory && checkedItems.length > 0 ? (
             <section aria-labelledby="checked-heading" className="pt-2">
               <div className="flex items-center gap-2 px-1">
                 <button
@@ -246,19 +305,13 @@ export default function ListScreen() {
                   <span id="checked-heading">In the basket</span>
                   <span className="font-normal text-larder-500">{checkedItems.length}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmClear(true)}
-                  className="tap gap-1.5 rounded-xl px-2 text-xs font-medium text-larder-600 hover:text-red-600 dark:text-larder-400 dark:hover:text-red-400"
-                >
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                  Clear
-                </button>
+                {clearButton}
               </div>
 
               {showChecked ? (
                 <ul
                   id="checked-panel"
+                  aria-label="Checked off"
                   className="card mt-1.5 divide-y divide-larder-100 overflow-hidden opacity-75 dark:divide-larder-800"
                 >
                   {checkedItems.map((item) => (
@@ -287,7 +340,9 @@ export default function ListScreen() {
 
       <ConfirmDialog
         open={confirmClear}
-        title={`Clear ${checkedItems.length} checked ${checkedItems.length === 1 ? 'item' : 'items'}?`}
+        title={`Clear ${items.filter((i) => i.checked).length} checked ${
+          items.filter((i) => i.checked).length === 1 ? 'item' : 'items'
+        }?`}
         body="They'll be removed from the list. You can undo straight after."
         confirmLabel="Clear"
         tone="danger"
@@ -295,7 +350,7 @@ export default function ListScreen() {
         onCancel={() => setConfirmClear(false)}
         onConfirm={() => {
           setConfirmClear(false)
-          const cleared = checkedItems
+          const cleared = items.filter((i) => i.checked)
           clearChecked.mutate(cleared, {
             onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
           })
@@ -317,15 +372,22 @@ export default function ListScreen() {
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 
-function groupItems(items: readonly Item[]): {
+function arrangeItems(
+  items: readonly Item[],
+  groupByCategory: boolean,
+  collapseChecked: boolean,
+): {
   groups: Array<[Category, Item[]]>
   checkedItems: Item[]
+  flat: Item[]
 } {
   const byCategory = new Map<Category, Item[]>()
   const checkedItems: Item[] = []
 
   for (const item of items) {
-    if (item.checked) {
+    // Checked items only move to their own section when the user wants them to;
+    // otherwise they stay in place, ticked.
+    if (item.checked && collapseChecked) {
       checkedItems.push(item)
       continue
     }
@@ -337,13 +399,17 @@ function groupItems(items: readonly Item[]): {
     else byCategory.set(category, [item])
   }
 
-  const groups = [...byCategory.entries()].sort(
-    (a, b) => CATEGORY_ORDER[a[0]] - CATEGORY_ORDER[b[0]],
+  const groups = groupByCategory
+    ? [...byCategory.entries()].sort((a, b) => CATEGORY_ORDER[a[0]] - CATEGORY_ORDER[b[0]])
+    : []
+
+  checkedItems.sort(
+    (a, b) => Date.parse(b.checked_at ?? b.updated_at) - Date.parse(a.checked_at ?? a.updated_at),
   )
 
-  checkedItems.sort((a, b) => Date.parse(b.checked_at ?? b.updated_at) - Date.parse(a.checked_at ?? a.updated_at))
+  const flat = collapseChecked ? items.filter((i) => !i.checked) : [...items]
 
-  return { groups, checkedItems }
+  return { groups, checkedItems, flat }
 }
 
 function EmptyState() {
@@ -365,9 +431,10 @@ function EmptyState() {
 
 function ListSkeleton() {
   return (
-    <div className="space-y-4 py-4" aria-hidden>
+    <div className="space-y-4 py-4" role="status" aria-live="polite">
+      <span className="sr-only">Loading your list</span>
       {[0, 1].map((section) => (
-        <div key={section}>
+        <div key={section} aria-hidden>
           <div className="skeleton mb-2 h-4 w-24" />
           <div className="card divide-y divide-larder-100 overflow-hidden dark:divide-larder-800">
             {[0, 1, 2].map((row) => (
@@ -379,7 +446,6 @@ function ListSkeleton() {
           </div>
         </div>
       ))}
-      <span className="sr-only">Loading your list</span>
     </div>
   )
 }

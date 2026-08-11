@@ -838,10 +838,20 @@ grant select, update                 on public.api_tokens        to service_role
 -- ═══════════════════════════════════════════════════════════════════════════
 --  REALTIME
 --
---  `replica identity full` is not optional. With the default (primary key
---  only) a DELETE event carries just the id, RLS cannot evaluate the policy
---  against the removed row, and the delete silently never reaches the other
---  client — the item stays on their screen forever.
+--  `replica identity full` is kept because Realtime only honours filters on
+--  non-primary-key columns when it is set, and the client filters INSERT and
+--  UPDATE on `list_id=eq.<id>`.
+--
+--  It does NOT, however, make DELETE payloads complete. Because RLS is enabled
+--  on this table, Supabase deliberately reduces the old record of a DELETE to
+--  its primary key — DELETE events are broadcast without a per-row policy
+--  check, so sending the whole row would leak it. `list_id` is therefore
+--  absent from a delete, a `list_id` filter can never match one, and the event
+--  is never delivered at all.
+--
+--  The consequence is a client-side one and it is handled in
+--  src/hooks/useRealtimeItems.ts: DELETE is subscribed to *unfiltered* and
+--  reconciled by id. Do not "tidy" that up by adding a filter to it.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 alter table public.items replica identity full;

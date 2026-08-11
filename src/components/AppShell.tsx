@@ -25,7 +25,7 @@ export function AppShell({ header, footer, children }: AppShellProps) {
         </header>
       ) : null}
 
-      <main className="safe-x min-h-0 flex-1 overflow-y-auto">
+      <main id="main" tabIndex={-1} className="safe-x min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl px-4">{children}</div>
       </main>
 

@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/hooks/useAuth'
+import { PreferencesProvider } from '@/hooks/usePreferences'
 import { ToastProvider } from '@/components/Toast'
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/ProtectedRoute'
 import { InstallHint } from '@/components/InstallHint'
@@ -8,6 +9,7 @@ import SignIn from '@/routes/SignIn'
 import SignUp from '@/routes/SignUp'
 import ForgotPassword from '@/routes/ForgotPassword'
 import UpdatePassword from '@/routes/UpdatePassword'
+import Confirm from '@/routes/Confirm'
 import HouseholdGate from '@/routes/HouseholdGate'
 import Setup from '@/routes/Setup'
 import HouseholdPicker from '@/routes/HouseholdPicker'
@@ -19,36 +21,46 @@ import NotFound from '@/routes/NotFound'
 
 export default function App() {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <OfflineBanner />
+    <PreferencesProvider>
+      <AuthProvider>
+        <ToastProvider>
+          <a
+            href="#main"
+            className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-xl focus:bg-larder-600 focus:px-4 focus:py-2 focus:text-white"
+          >
+            Skip to content
+          </a>
 
-        <Routes>
-          {/* Reachable signed out or signed in: a recovery link establishes a
-              session, so gating this either way locks somebody out. */}
-          <Route path="/update-password" element={<UpdatePassword />} />
+          <OfflineBanner />
 
-          <Route element={<PublicOnlyRoute />}>
-            <Route path="/signin" element={<SignIn />} />
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-          </Route>
+          <Routes>
+            {/* Reachable signed out or signed in: these links establish a
+                session themselves, so gating them either way locks someone out. */}
+            <Route path="/update-password" element={<UpdatePassword />} />
+            <Route path="/confirm" element={<Confirm />} />
 
-          <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<HouseholdGate />} />
-            <Route path="/setup" element={<Setup />} />
-            <Route path="/households" element={<HouseholdPicker />} />
-            <Route path="/h/:householdId" element={<ListScreen />} />
-            <Route path="/h/:householdId/household" element={<HouseholdDetail />} />
-            <Route path="/h/:householdId/siri" element={<SiriSettings />} />
-            <Route path="/account" element={<Account />} />
-          </Route>
+            <Route element={<PublicOnlyRoute />}>
+              <Route path="/signin" element={<SignIn />} />
+              <Route path="/signup" element={<SignUp />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+            </Route>
 
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+            <Route element={<ProtectedRoute />}>
+              <Route path="/" element={<HouseholdGate />} />
+              <Route path="/setup" element={<Setup />} />
+              <Route path="/households" element={<HouseholdPicker />} />
+              <Route path="/h/:householdId" element={<ListScreen />} />
+              <Route path="/h/:householdId/household" element={<HouseholdDetail />} />
+              <Route path="/h/:householdId/siri" element={<SiriSettings />} />
+              <Route path="/account" element={<Account />} />
+            </Route>
 
-        <InstallHint />
-      </ToastProvider>
-    </AuthProvider>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+
+          <InstallHint />
+        </ToastProvider>
+      </AuthProvider>
+    </PreferencesProvider>
   )
 }
