@@ -13,18 +13,22 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Defined against CSS variables so the whole app can be re-themed by
+        // reassigning eleven custom properties. `<alpha-value>` keeps opacity
+        // modifiers (bg-larder-600/40) working. Defaults live in index.css and
+        // the pre-paint script in index.html; src/lib/themes.ts owns the ramps.
         larder: {
-          50: '#f2f8f4',
-          100: '#e0efe4',
-          200: '#c2dfcb',
-          300: '#96c7a7',
-          400: '#63a87d',
-          500: '#418a5e',
-          600: '#2f6e49',
-          700: '#27583c',
-          800: '#224732',
-          900: '#1d3b2b',
-          950: '#0e2117',
+          50: 'rgb(var(--c-50) / <alpha-value>)',
+          100: 'rgb(var(--c-100) / <alpha-value>)',
+          200: 'rgb(var(--c-200) / <alpha-value>)',
+          300: 'rgb(var(--c-300) / <alpha-value>)',
+          400: 'rgb(var(--c-400) / <alpha-value>)',
+          500: 'rgb(var(--c-500) / <alpha-value>)',
+          600: 'rgb(var(--c-600) / <alpha-value>)',
+          700: 'rgb(var(--c-700) / <alpha-value>)',
+          800: 'rgb(var(--c-800) / <alpha-value>)',
+          900: 'rgb(var(--c-900) / <alpha-value>)',
+          950: 'rgb(var(--c-950) / <alpha-value>)',
         },
       },
       spacing: {

@@ -1,10 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { readLocal, writeLocal } from '@/lib/storage'
+import { applyAccent, accentHex, toAccent, type Accent } from '@/lib/themes'
 
 export type ThemeChoice = 'system' | 'light' | 'dark'
 export type TextSize = 'normal' | 'large' | 'x-large'
 
 export type Preferences = {
+  /** App-wide accent. Re-themes every `larder-*` class in one assignment. */
+  accent: Accent
   theme: ThemeChoice
   textSize: TextSize
   /** Group the list into aisle sections, or show one flat list. */
@@ -20,6 +23,7 @@ export type Preferences = {
 }
 
 const DEFAULTS: Preferences = {
+  accent: 'larder',
   theme: 'system',
   textSize: 'normal',
   groupByCategory: true,
@@ -49,6 +53,7 @@ function readPreferences(): Preferences {
     const p = parsed as Record<string, unknown>
 
     return {
+      accent: toAccent(p.accent),
       theme: isThemeChoice(p.theme) ? p.theme : DEFAULTS.theme,
       textSize: isTextSize(p.textSize) ? p.textSize : DEFAULTS.textSize,
       groupByCategory:
@@ -86,10 +91,30 @@ function applyToDocument(preferences: Preferences): void {
   root.classList.remove('text-size-normal', 'text-size-large', 'text-size-x-large')
   root.classList.add(`text-size-${preferences.textSize}`)
 
+  // Eleven variables, and every `larder-*` class in the app follows.
+  applyAccent(preferences.accent, root)
+
   // Keeps form controls and the browser UI in step with the chosen theme.
   root.style.colorScheme = dark ? 'dark' : 'light'
+
+  // Tints Safari's UI and Android's status bar. Updates live.
   const themeColorMeta = document.querySelector('meta[name="theme-color"]')
-  if (themeColorMeta) themeColorMeta.setAttribute('content', dark ? '#0e2117' : '#27583c')
+  if (themeColorMeta) {
+    themeColorMeta.setAttribute('content', accentHex(preferences.accent, dark ? 950 : 700))
+  }
+
+  // Point the install metadata at the matching icon set. This cannot change an
+  // icon that is *already* on a home screen — iOS copies it at install time and
+  // exposes no API to replace it — but it does mean the next install, on either
+  // platform, gets the colour the user actually chose.
+  const appleIcon = document.querySelector('link[rel="apple-touch-icon"]')
+  if (appleIcon) {
+    appleIcon.setAttribute('href', `/icons/${preferences.accent}/apple-touch-icon.png`)
+  }
+  const manifest = document.querySelector('link[rel="manifest"]')
+  if (manifest) {
+    manifest.setAttribute('href', `/icons/${preferences.accent}/manifest.webmanifest`)
+  }
 }
 
 export function PreferencesProvider({ children }: { children: ReactNode }) {

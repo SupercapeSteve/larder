@@ -25,10 +25,10 @@
       /* Painted before any JS runs, so a cold start on a slow connection is
          the app's background colour rather than a white flash. */
       html {
-        background: #f2f8f4;
+        background: rgb(var(--c-50, 242 248 244));
       }
       html.dark {
-        background: #0e2117;
+        background: rgb(var(--c-950, 14 33 23));
       }
     </style>
 
@@ -48,6 +48,26 @@
           root.classList.toggle('dark', dark)
           root.classList.add('text-size-' + size)
           root.style.colorScheme = dark ? 'dark' : 'light'
+
+          // Only the two background steps, so a non-default accent does not
+          // flash green before React mounts and writes the full ramp. Keep in
+          // step with ACCENT_RAMPS in src/lib/themes.ts.
+          var bg = {
+            larder: ['242 248 244', '14 33 23'],
+            teal: ['240 253 250', '4 47 46'],
+            sky: ['240 249 255', '8 47 73'],
+            indigo: ['238 242 255', '30 27 75'],
+            violet: ['245 243 255', '46 16 101'],
+            pink: ['253 242 248', '80 7 36'],
+            rose: ['255 241 242', '76 5 25'],
+            orange: ['255 247 237', '67 20 7'],
+            amber: ['255 251 235', '69 26 3'],
+            slate: ['248 250 252', '2 6 23'],
+          }[prefs.accent] || null
+          if (bg) {
+            root.style.setProperty('--c-50', bg[0])
+            root.style.setProperty('--c-950', bg[1])
+          }
         } catch (e) {
           /* Private mode or corrupt value — fall back to the CSS defaults. */
         }

@@ -10,6 +10,7 @@ import { useAuth, useProfile, useUpdateProfile } from '@/hooks/useAuth'
 import { Avatar } from '@/components/Avatar'
 import { AvatarPicker } from '@/components/AvatarPicker'
 import { useRemoveAvatar, useUploadAvatar } from '@/hooks/useAvatarUpload'
+import { AccentPicker } from '@/components/AccentPicker'
 import { usePreferences, type TextSize, type ThemeChoice } from '@/hooks/usePreferences'
 import { useHouseholds } from '@/hooks/useHouseholds'
 import { MIN_PASSWORD_LENGTH, signOut, updatePassword, validatePassword } from '@/lib/auth'
@@ -67,6 +68,10 @@ export default function Account() {
         <PasswordSection />
 
         <SettingsSection title="Appearance" description="Applies on this device only.">
+          <AccentPicker
+            value={preferences.accent}
+            onChange={(next) => setPreference('accent', next)}
+          />
           <ChoiceRow
             label="Theme"
             value={preferences.theme}

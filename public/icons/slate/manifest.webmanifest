@@ -1,0 +1,37 @@
+{
+  "name": "Larder",
+  "short_name": "Groceries",
+  "description": "A realtime household grocery list.",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#334155",
+  "background_color": "#f8fafc",
+  "start_url": "/",
+  "scope": "/",
+  "lang": "en",
+  "categories": [
+    "shopping",
+    "productivity",
+    "lifestyle"
+  ],
+  "icons": [
+    {
+      "src": "/icons/slate/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/slate/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/slate/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

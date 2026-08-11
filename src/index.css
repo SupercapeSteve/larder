@@ -5,6 +5,21 @@
 @layer base {
   :root {
     color-scheme: light dark;
+
+    /* Default accent — the original Larder green. Overwritten on <html> by the
+       pre-paint script in index.html and by PreferencesProvider. Keep in step
+       with ACCENT_RAMPS.larder in src/lib/themes.ts. */
+    --c-50: 242 248 244;
+    --c-100: 224 239 228;
+    --c-200: 194 223 203;
+    --c-300: 150 199 167;
+    --c-400: 99 168 125;
+    --c-500: 65 138 94;
+    --c-600: 47 110 73;
+    --c-700: 39 88 60;
+    --c-800: 34 71 50;
+    --c-900: 29 59 43;
+    --c-950: 14 33 23;
     /* Fallbacks so layouts stay sane on browsers without safe-area support. */
     --sa-top: env(safe-area-inset-top, 0px);
     --sa-bottom: env(safe-area-inset-bottom, 0px);
