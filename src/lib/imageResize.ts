@@ -1,14 +1,12 @@
 /**
- * Downscale an image in the browser before uploading it.
+ * Image handling for avatars.
  *
- * A phone photo is 3–8 MB and 4000px wide; an avatar is displayed at 64px. The
- * upload should reflect the second number, not the first. Resizing client-side
- * means we never spend the user's data on pixels that get thrown away, never
- * store an original that could contain EXIF GPS, and stay well inside the
- * bucket's 2 MB ceiling.
+ * The final upload is always a 256×256 JPEG — an avatar renders at 64px, so a
+ * 4000px phone photo would be spending the user's data on pixels nobody sees.
  *
- * Re-encoding through a canvas also strips EXIF entirely, which is the point:
- * a photo straight from the camera roll can carry the location it was taken.
+ * Re-encoding through a canvas also strips EXIF entirely, which matters: a
+ * photo straight from the camera roll can carry the GPS coordinates where it
+ * was taken, and the avatars bucket is public-read.
  */
 
 export const AVATAR_SIZE_PX = 256
@@ -22,7 +20,8 @@ export class ImageDecodeError extends Error {
   }
 }
 
-function loadImage(file: File): Promise<HTMLImageElement> {
+/** Decode a picked file into something we can measure and draw. */
+export function loadImageFromFile(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const image = new Image()
@@ -38,12 +37,21 @@ function loadImage(file: File): Promise<HTMLImageElement> {
   })
 }
 
-/**
- * Square, centre-cropped, 256×256 JPEG. Typically lands around 15–30 KB.
- */
-export async function resizeToAvatar(file: File): Promise<Blob> {
-  const image = await loadImage(file)
+/** A square region of the source image, in the source's own pixel space. */
+export type SourceCrop = {
+  sx: number
+  sy: number
+  size: number
+}
 
+/**
+ * Render the chosen square of the source image to a 256×256 JPEG.
+ * Typically lands around 15–30 KB.
+ */
+export async function cropToAvatarBlob(
+  image: HTMLImageElement,
+  crop: SourceCrop,
+): Promise<Blob> {
   const canvas = document.createElement('canvas')
   canvas.width = AVATAR_SIZE_PX
   canvas.height = AVATAR_SIZE_PX
@@ -51,14 +59,16 @@ export async function resizeToAvatar(file: File): Promise<Blob> {
   const context = canvas.getContext('2d')
   if (!context) throw new ImageDecodeError()
 
-  // Centre-crop to a square so faces are not squashed by an aspect change.
-  const side = Math.min(image.naturalWidth, image.naturalHeight)
-  const sx = (image.naturalWidth - side) / 2
-  const sy = (image.naturalHeight - side) / 2
-
   context.imageSmoothingEnabled = true
   context.imageSmoothingQuality = 'high'
-  context.drawImage(image, sx, sy, side, side, 0, 0, AVATAR_SIZE_PX, AVATAR_SIZE_PX)
+
+  // Clamp defensively — a rect that runs off the edge of the source draws
+  // transparent pixels, which become black in a JPEG.
+  const size = Math.max(1, Math.min(crop.size, image.naturalWidth, image.naturalHeight))
+  const sx = Math.max(0, Math.min(crop.sx, image.naturalWidth - size))
+  const sy = Math.max(0, Math.min(crop.sy, image.naturalHeight - size))
+
+  context.drawImage(image, sx, sy, size, size, 0, 0, AVATAR_SIZE_PX, AVATAR_SIZE_PX)
 
   const blob = await new Promise<Blob | null>((resolve) => {
     canvas.toBlob(resolve, MIME, QUALITY)

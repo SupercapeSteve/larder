@@ -3,39 +3,19 @@ import { supabase } from '@/lib/supabase'
 import { qk } from '@/lib/queryClient'
 import { rpcErrorMessage } from '@/lib/authErrors'
 import { useUser } from '@/hooks/useAuth'
-import { ImageDecodeError, resizeToAvatar } from '@/lib/imageResize'
 import type { Profile } from '@/types/database'
 
 const BUCKET = 'avatars'
-/** Refuse absurd files before spending time decoding them. */
-const MAX_INPUT_BYTES = 15 * 1024 * 1024
 
 export function useUploadAvatar() {
   const user = useUser()
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (file: File): Promise<Profile> => {
+    // Takes an already-cropped 256×256 JPEG from ImageCropper, not a raw file:
+    // the user chooses the framing, so the crop cannot be decided here.
+    mutationFn: async (blob: Blob): Promise<Profile> => {
       if (!user) throw new Error('Your session expired. Sign in again.')
-      if (!file.type.startsWith('image/')) {
-        throw new Error('Pick an image file — a JPEG, PNG or WebP.')
-      }
-      if (file.size > MAX_INPUT_BYTES) {
-        throw new Error('That image is enormous. Pick one under 15 MB.')
-      }
-
-      // Downscale first: the upload is ~20 KB instead of several megabytes,
-      // and re-encoding through a canvas strips any EXIF location data.
-      let blob: Blob
-      try {
-        blob = await resizeToAvatar(file)
-      } catch (error) {
-        throw new Error(
-          error instanceof ImageDecodeError
-            ? error.message
-            : 'That image could not be processed. Try a different one.',
-        )
-      }
 
       // One object per user, overwritten in place. Keeps storage from growing
       // without bound as somebody tries six photos in a row.

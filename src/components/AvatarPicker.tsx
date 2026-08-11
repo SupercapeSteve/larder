@@ -1,8 +1,12 @@
-import { useRef, type ChangeEvent } from 'react'
+import { useRef, useState, type ChangeEvent } from 'react'
 import { Check, ImageUp, Trash2, X } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
+import { ImageCropper } from '@/components/ImageCropper'
 import { Spinner } from '@/components/ui'
 import { AVATAR_COLORS, AVATAR_EMOJI, AVATAR_SWATCH, type AvatarColor } from '@/lib/avatars'
+
+/** Refuse absurd files before spending time decoding them. */
+const MAX_INPUT_BYTES = 25 * 1024 * 1024
 
 type AvatarPickerProps = {
   userId: string | null
@@ -12,8 +16,10 @@ type AvatarPickerProps = {
   imageUrl: string | null
   uploading?: boolean
   onChange: (next: { emoji?: string | null; color?: AvatarColor }) => void
-  onUpload: (file: File) => void
+  /** Receives the cropped 256×256 JPEG, not the original file. */
+  onUpload: (blob: Blob) => void
   onRemoveImage: () => void
+  onError: (message: string) => void
 }
 
 export function AvatarPicker({
@@ -26,14 +32,28 @@ export function AvatarPicker({
   onChange,
   onUpload,
   onRemoveImage,
+  onError,
 }: AvatarPickerProps) {
   const fileRef = useRef<HTMLInputElement>(null)
+  const [cropping, setCropping] = useState<File | null>(null)
 
   function onPick(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     // Reset immediately so choosing the same file twice still fires onChange.
     event.target.value = ''
-    if (file) onUpload(file)
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      onError('Pick an image file — a JPEG, PNG or WebP.')
+      return
+    }
+    if (file.size > MAX_INPUT_BYTES) {
+      onError('That image is enormous. Pick one under 25 MB.')
+      return
+    }
+
+    // Straight into the cropper; nothing uploads until the framing is chosen.
+    setCropping(file)
   }
 
   return (
@@ -160,6 +180,16 @@ export function AvatarPicker({
           })}
         </div>
       </fieldset>
+
+      <ImageCropper
+        file={cropping}
+        busy={uploading}
+        onCancel={() => setCropping(null)}
+        onConfirm={(blob) => {
+          setCropping(null)
+          onUpload(blob)
+        }}
+      />
     </div>
   )
 }

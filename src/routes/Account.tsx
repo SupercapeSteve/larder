@@ -194,12 +194,13 @@ function AvatarSection() {
             { onError },
           )
         }
-        onUpload={(file) =>
-          uploadAvatar.mutate(file, {
+        onUpload={(blob) =>
+          uploadAvatar.mutate(blob, {
             onSuccess: () => showToast({ message: 'Photo updated.' }),
             onError,
           })
         }
+        onError={(message) => showToast({ message, tone: 'error' })}
         onRemoveImage={() =>
           removeAvatar.mutate(undefined, {
             onSuccess: () => showToast({ message: 'Photo removed.' }),
