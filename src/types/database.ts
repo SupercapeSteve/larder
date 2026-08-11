@@ -18,16 +18,22 @@ export type Database = {
         Row: {
           id: string
           display_name: string
+          avatar_emoji: string | null
+          avatar_color: string | null
           created_at: string
         }
         Insert: {
           id: string
           display_name: string
+          avatar_emoji?: string | null
+          avatar_color?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           display_name?: string
+          avatar_emoji?: string | null
+          avatar_color?: string | null
           created_at?: string
         }
         Relationships: []
@@ -252,6 +258,14 @@ export type Database = {
       }
       leave_household: {
         Args: { hid: string }
+        Returns: undefined
+      }
+      regenerate_join_code: {
+        Args: { hid: string }
+        Returns: string
+      }
+      set_member_role: {
+        Args: { hid: string; target: string; new_role: string }
         Returns: undefined
       }
     }

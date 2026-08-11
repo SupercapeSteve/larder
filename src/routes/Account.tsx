@@ -6,7 +6,9 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ErrorBanner, Spinner, SuccessBanner, TextField } from '@/components/ui'
 import { ChoiceRow, InfoRow, SettingsSection, ToggleRow } from '@/components/settings'
 import { useToast } from '@/components/Toast'
-import { useAuth, useProfile, useUpdateDisplayName } from '@/hooks/useAuth'
+import { useAuth, useProfile, useUpdateProfile } from '@/hooks/useAuth'
+import { Avatar } from '@/components/Avatar'
+import { AvatarPicker } from '@/components/AvatarPicker'
 import { usePreferences, type TextSize, type ThemeChoice } from '@/hooks/usePreferences'
 import { useHouseholds } from '@/hooks/useHouseholds'
 import { MIN_PASSWORD_LENGTH, signOut, updatePassword, validatePassword } from '@/lib/auth'
@@ -50,6 +52,7 @@ export default function Account() {
     >
       <div className="space-y-6 py-4 pb-12">
         <NameSection />
+        <AvatarSection />
 
         <SettingsSection title="Account">
           <InfoRow icon={<Mail className="h-5 w-5" aria-hidden />} label="Email" value={user?.email ?? '—'} />
@@ -161,9 +164,39 @@ export default function Account() {
 
 /* ── Display name ─────────────────────────────────────────────────────────── */
 
-function NameSection() {
+function AvatarSection() {
+  const { user } = useAuth()
   const { data: profile } = useProfile()
-  const updateName = useUpdateDisplayName()
+  const updateProfile = useUpdateProfile()
+  const { showToast } = useToast()
+
+  return (
+    <SettingsSection title="Your avatar">
+      <AvatarPicker
+        userId={user?.id ?? null}
+        displayName={profile?.display_name ?? null}
+        emoji={profile?.avatar_emoji ?? null}
+        color={profile?.avatar_color ?? null}
+        onChange={(next) =>
+          updateProfile.mutate(
+            {
+              ...(next.emoji !== undefined ? { avatarEmoji: next.emoji } : {}),
+              ...(next.color !== undefined ? { avatarColor: next.color } : {}),
+            },
+            {
+              onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
+            },
+          )
+        }
+      />
+    </SettingsSection>
+  )
+}
+
+function NameSection() {
+  const { user } = useAuth()
+  const { data: profile } = useProfile()
+  const updateName = useUpdateProfile()
   const { showToast } = useToast()
 
   const [editing, setEditing] = useState(false)
@@ -181,13 +214,16 @@ function NameSection() {
       return
     }
     setError(null)
-    updateName.mutate(name, {
-      onSuccess: () => {
-        setEditing(false)
-        showToast({ message: 'Name updated.' })
+    updateName.mutate(
+      { displayName: name },
+      {
+        onSuccess: () => {
+          setEditing(false)
+          showToast({ message: 'Name updated.' })
+        },
+        onError: (e) => setError((e as Error).message),
       },
-      onError: (e) => setError((e as Error).message),
-    })
+    )
   }
 
   return (
@@ -222,12 +258,13 @@ function NameSection() {
         </form>
       ) : (
         <div className="flex items-center gap-3 px-4 py-3">
-          <span
-            aria-hidden
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-larder-200 text-base font-semibold text-larder-800 dark:bg-larder-800 dark:text-larder-100"
-          >
-            {(profile?.display_name ?? '?').charAt(0).toUpperCase()}
-          </span>
+          <Avatar
+            userId={user?.id ?? null}
+            displayName={profile?.display_name ?? null}
+            emoji={profile?.avatar_emoji ?? null}
+            color={profile?.avatar_color ?? null}
+            size="md"
+          />
           <span className="min-w-0 flex-1 truncate text-sm font-medium text-larder-950 dark:text-larder-50">
             {profile?.display_name ?? '—'}
           </span>

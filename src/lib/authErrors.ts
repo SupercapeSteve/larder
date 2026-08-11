@@ -85,6 +85,11 @@ const RPC_MESSAGES: Record<string, string> = {
   NOT_A_MEMBER: 'You’re not in that household any more.',
   INVALID_NAME: 'Give the household a name first.',
   JOIN_CODE_EXHAUSTED: 'Couldn’t generate a join code. Try again.',
+  NOT_OWNER: 'Only an owner can do that.',
+  INVALID_ROLE: 'That isn’t a role Larder recognises.',
+  LAST_OWNER: 'A household needs at least one owner. Promote somebody else first.',
+  LIST_HOUSEHOLD_IMMUTABLE: 'A list can’t be moved to another household.',
+  ITEM_LIST_IMMUTABLE: 'An item can’t be moved to another list.',
 }
 
 export function rpcErrorMessage(error: unknown): string {

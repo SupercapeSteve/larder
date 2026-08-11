@@ -18,6 +18,8 @@ export type MemberWithProfile = {
   role: HouseholdRole
   joinedAt: string
   displayName: string
+  avatarEmoji: string | null
+  avatarColor: string | null
   isYou: boolean
 }
 
@@ -86,19 +88,24 @@ export function useMembers(householdId: string | undefined) {
 
       const { data: profiles, error: profileError } = await supabase
         .from('profiles')
-        .select('id, display_name')
+        .select('id, display_name, avatar_emoji, avatar_color')
         .in('id', ids)
       if (profileError) throw profileError
 
-      const names = new Map((profiles ?? []).map((p) => [p.id, p.display_name]))
+      const byId = new Map((profiles ?? []).map((p) => [p.id, p]))
 
-      return (members ?? []).map((m) => ({
-        userId: m.user_id,
-        role: toRole(m.role),
-        joinedAt: m.joined_at,
-        displayName: names.get(m.user_id) ?? 'Someone',
-        isYou: m.user_id === user?.id,
-      }))
+      return (members ?? []).map((m) => {
+        const profile = byId.get(m.user_id)
+        return {
+          userId: m.user_id,
+          role: toRole(m.role),
+          joinedAt: m.joined_at,
+          displayName: profile?.display_name ?? 'Someone',
+          avatarEmoji: profile?.avatar_emoji ?? null,
+          avatarColor: profile?.avatar_color ?? null,
+          isYou: m.user_id === user?.id,
+        }
+      })
     },
   })
 }
@@ -168,6 +175,86 @@ export function useJoinHousehold() {
       void queryClient.invalidateQueries({ queryKey: qk.households() })
       void queryClient.invalidateQueries({ queryKey: qk.members(householdId) })
       void queryClient.invalidateQueries({ queryKey: qk.lists(householdId) })
+    },
+  })
+}
+
+/**
+ * Rename a household. No RPC needed — `households_update_owner` already gates
+ * UPDATE on ownership, so a non-owner's write matches zero rows.
+ */
+export function useRenameHousehold(householdId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (name: string): Promise<Household> => {
+      const trimmed = name.trim()
+      if (trimmed.length === 0) throw new Error('Give the household a name.')
+
+      const { data, error } = await supabase
+        .from('households')
+        .update({ name: trimmed.slice(0, 60) })
+        .eq('id', householdId)
+        .select('*')
+        .maybeSingle()
+      if (error) throw new Error(rpcErrorMessage(error))
+      if (!data) throw new Error('Only an owner can rename this household.')
+      return data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.households() })
+    },
+  })
+}
+
+/** Rotate the invite code. Owner-only, enforced inside the definer RPC. */
+export function useRegenerateJoinCode(householdId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (): Promise<string> => {
+      const { data, error } = await supabase.rpc('regenerate_join_code', { hid: householdId })
+      if (error) throw new Error(rpcErrorMessage(error))
+      if (typeof data !== 'string') throw new Error('Couldn’t generate a new code. Try again.')
+      return data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.households() })
+    },
+  })
+}
+
+/**
+ * Promote or demote a member. Clients hold no UPDATE privilege on
+ * household_members — granting it is what re-opens the self-promotion hole —
+ * so this goes through a definer RPC that also guards the last-owner case.
+ */
+export function useSetMemberRole(householdId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: HouseholdRole }): Promise<void> => {
+      const { error } = await supabase.rpc('set_member_role', {
+        hid: householdId,
+        target: userId,
+        new_role: role,
+      })
+      if (error) throw new Error(rpcErrorMessage(error))
+    },
+    onMutate: async ({ userId, role }) => {
+      await queryClient.cancelQueries({ queryKey: qk.members(householdId) })
+      const previous = queryClient.getQueryData<MemberWithProfile[]>(qk.members(householdId))
+      queryClient.setQueryData<MemberWithProfile[]>(qk.members(householdId), (old) =>
+        (old ?? []).map((m) => (m.userId === userId ? { ...m, role } : m)),
+      )
+      return { previous }
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(qk.members(householdId), context.previous)
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.members(householdId) })
+      void queryClient.invalidateQueries({ queryKey: qk.households() })
     },
   })
 }

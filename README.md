@@ -1,11 +1,49 @@
-# Larder
+# 🧺 Larder
 
-A realtime, multi-user, household-scoped grocery list. Installable as a PWA on iOS and
-Android, controllable by voice through Apple Shortcuts and Siri. No App Store, no server
-to run, no hosting bill.
+**A realtime, multi-user grocery list for a household.** Installable as a PWA on iOS and
+Android, controllable by voice through Siri. No App Store, no server to run, no hosting
+bill.
 
 Two people in different aisles see each other's edits in under a second, with correct
 attribution, without refreshing.
+
+<div align="center">
+
+`React 18` · `TypeScript (strict)` · `Vite 6` · `Tailwind 3` · `TanStack Query 5` ·
+`Supabase` · `Vercel`
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-2f6e49.svg)](LICENSE)
+
+</div>
+
+---
+
+### What it does
+
+- **Realtime** — add, check off, edit or delete on one phone; every other phone updates in
+  under a second, with who-did-what attribution
+- **Optimistic** — every mutation lands instantly and rolls back if the server refuses
+- **Voice** — "Siri, add to Larder" → speak your items → hear them confirmed back
+- **Home screen widget** — via Scriptable, reading the same API
+- **Offline-aware** — the app shell is cached and an honest banner appears rather than
+  silently dropping writes
+- **Aisle-sorted** — 16 categories assigned automatically from a keyword map, in the order
+  you walk a shop
+- **Households** — six-character invite codes, owner/member permissions, avatars
+
+### Security posture
+
+This repository is public; the deployment it describes is not shared. Worth knowing if
+you're reading the code:
+
+- The browser only ever holds the **publishable** key. It is compiled into the bundle by
+  design and grants nothing on its own — **Row Level Security** is the authorisation
+  boundary, and `supabase/tests/rls.sql` proves a household cannot read another's data.
+- No secret or service-role key appears anywhere in `src/`. The Siri edge function reads
+  `SUPABASE_SERVICE_ROLE_KEY` from `Deno.env` at runtime, where Supabase injects it.
+- Siri tokens are stored as **SHA-256 hashes only**; the plaintext is shown exactly once.
+- Migrations carry **self-tests** that abort the transaction rather than ship a broken
+  invariant.
 
 ---
 

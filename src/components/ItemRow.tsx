@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { Check, MoreHorizontal, Trash2 } from 'lucide-react'
 import { useHaptic, usePreferences } from '@/hooks/usePreferences'
+import { Avatar } from '@/components/Avatar'
 import type { Item } from '@/types/database'
 
 const SWIPE_TRIGGER_PX = 96
@@ -10,10 +11,16 @@ const LONG_PRESS_MS = 480
 /** iOS owns the left screen edge for its back gesture — don't fight it. */
 const EDGE_GUARD_PX = 24
 
+export type RowMember = {
+  displayName: string
+  avatarEmoji: string | null
+  avatarColor: string | null
+}
+
 type ItemRowProps = {
   item: Item
-  /** Display name for a user id — used for "who added / who checked". */
-  nameFor: (userId: string | null) => string | null
+  /** Resolves a user id to who they are — used for "who added / who checked". */
+  memberFor: (userId: string | null) => RowMember | null
   onToggle: (item: Item) => void
   onEdit: (item: Item) => void
   onDelete: (item: Item) => void
@@ -28,7 +35,7 @@ function damped(dx: number): number {
   return -Math.min(resisted, SWIPE_SOFT_MAX_PX)
 }
 
-export function ItemRow({ item, nameFor, onToggle, onEdit, onDelete }: ItemRowProps) {
+export function ItemRow({ item, memberFor, onToggle, onEdit, onDelete }: ItemRowProps) {
   const { preferences } = usePreferences()
   const haptic = useHaptic()
 
@@ -163,14 +170,17 @@ export function ItemRow({ item, nameFor, onToggle, onEdit, onDelete }: ItemRowPr
     setOffset(0)
   }
 
-  const addedBy = nameFor(item.added_by)
-  const checkedBy = nameFor(item.checked_by)
+  const addedBy = memberFor(item.added_by)
+  const checkedBy = memberFor(item.checked_by)
+  // Who to show: whoever last acted on it.
+  const actor = item.checked && checkedBy ? checkedBy : addedBy
+  const actorId = item.checked && checkedBy ? item.checked_by : item.added_by
   const attribution = !preferences.showAttribution
     ? null
     : item.checked && checkedBy
-      ? `Checked by ${checkedBy}`
+      ? `Checked by ${checkedBy.displayName}`
       : addedBy
-        ? `Added by ${addedBy}`
+        ? `Added by ${addedBy.displayName}`
         : null
 
   const progress = Math.min(1, Math.abs(offset) / SWIPE_TRIGGER_PX)
@@ -271,12 +281,13 @@ export function ItemRow({ item, nameFor, onToggle, onEdit, onDelete }: ItemRowPr
               {item.note && attribution ? <span aria-hidden>·</span> : null}
               {attribution ? (
                 <span className="flex shrink-0 items-center gap-1">
-                  <span
-                    aria-hidden
-                    className="flex h-4 w-4 items-center justify-center rounded-full bg-larder-200 text-[9px] font-bold text-larder-700 dark:bg-larder-700 dark:text-larder-200"
-                  >
-                    {(item.checked && checkedBy ? checkedBy : (addedBy ?? '?')).charAt(0).toUpperCase()}
-                  </span>
+                  <Avatar
+                    userId={actorId}
+                    displayName={actor?.displayName ?? null}
+                    emoji={actor?.avatarEmoji ?? null}
+                    color={actor?.avatarColor ?? null}
+                    size="xs"
+                  />
                   {attribution}
                 </span>
               ) : null}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ChevronDown, Settings, ShoppingBasket, Trash2, UserCircle2 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
@@ -63,14 +63,23 @@ export default function ListScreen() {
   const household = householdsQuery.data?.find((h) => h.id === householdId)
 
   // Remembered so a cold start lands straight back on this list rather than
-  // the picker. In an effect, not in render — render must stay side-effect free.
+  // the picker. In an effect, not in render â€” render must stay side-effect free.
   useEffect(() => {
     if (household) writeLocal(LAST_HOUSEHOLD_KEY, household.id)
   }, [household])
 
-  const nameFor = useMemo(() => {
-    const names = new Map((membersQuery.data ?? []).map((m) => [m.userId, m.isYou ? 'you' : m.displayName]))
-    return (userId: string | null) => (userId ? (names.get(userId) ?? null) : null)
+  const memberFor = useMemo(() => {
+    const byId = new Map(
+      (membersQuery.data ?? []).map((m) => [
+        m.userId,
+        {
+          displayName: m.isYou ? 'you' : m.displayName,
+          avatarEmoji: m.avatarEmoji,
+          avatarColor: m.avatarColor,
+        },
+      ]),
+    )
+    return (userId: string | null) => (userId ? (byId.get(userId) ?? null) : null)
   }, [membersQuery.data])
 
   const items = itemsQuery.data ?? []
@@ -270,7 +279,7 @@ export default function ListScreen() {
                           <ItemRow
                             key={item.id}
                             item={item}
-                            nameFor={nameFor}
+                            memberFor={memberFor}
                             onToggle={onToggle}
                             onEdit={setEditing}
                             onDelete={onDelete}
@@ -290,7 +299,7 @@ export default function ListScreen() {
                   <ItemRow
                     key={item.id}
                     item={item}
-                    nameFor={nameFor}
+                    memberFor={memberFor}
                     onToggle={onToggle}
                     onEdit={setEditing}
                     onDelete={onDelete}
@@ -331,7 +340,7 @@ export default function ListScreen() {
                       <ItemRow
                         key={item.id}
                         item={item}
-                        nameFor={nameFor}
+                        memberFor={memberFor}
                         onToggle={onToggle}
                         onEdit={setEditing}
                         onDelete={onDelete}
@@ -384,7 +393,7 @@ export default function ListScreen() {
   )
 }
 
-/* ── Helpers ──────────────────────────────────────────────────────────────── */
+/* â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function arrangeItems(
   items: readonly Item[],
@@ -406,7 +415,7 @@ function arrangeItems(
       continue
     }
     // `category` is free text in the database and may be null or something we
-    // no longer recognise — narrow it rather than indexing blindly.
+    // no longer recognise â€” narrow it rather than indexing blindly.
     const category = toCategory(item.category)
     const bucket = byCategory.get(category)
     if (bucket) bucket.push(item)
@@ -436,7 +445,7 @@ function EmptyState() {
         Empty larder, clean slate
       </h2>
       <p className="mt-1.5 max-w-xs text-sm text-larder-600 dark:text-larder-400">
-        Add the first thing below. Type it however you'd say it — "2 loaves of bread" sorts itself
+        Add the first thing below. Type it however you'd say it â€” "2 loaves of bread" sorts itself
         out.
       </p>
     </div>
@@ -463,3 +472,4 @@ function ListSkeleton() {
     </div>
   )
 }
+

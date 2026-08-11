@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { qk } from '@/lib/queryClient'
 import { authErrorMessage } from '@/lib/authErrors'
-import type { Profile } from '@/types/database'
+import type { Profile, TablesUpdate } from '@/types/database'
 
 export type AuthStatus = 'loading' | 'signed-in' | 'signed-out'
 
@@ -142,31 +142,50 @@ export function useProfile() {
   })
 }
 
+export type ProfileEdits = {
+  displayName?: string
+  avatarEmoji?: string | null
+  avatarColor?: string | null
+}
+
 /**
- * Rename yourself. The display name is what housemates see next to every item
- * you add, so it is worth being able to change without making a new account.
+ * Edit your own profile — name and avatar.
+ *
+ * The display name and avatar are what housemates see next to every item you
+ * add, so both are worth changing without making a new account.
  */
-export function useUpdateDisplayName() {
+export function useUpdateProfile() {
   const user = useUser()
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (displayName: string): Promise<Profile> => {
+    mutationFn: async (edits: ProfileEdits): Promise<Profile> => {
       if (!user) throw new Error('Your session expired. Sign in again.')
 
-      const trimmed = displayName.trim()
-      if (trimmed.length === 0) throw new Error('Your name can’t be empty.')
+      // Typed against the table so a typo in a column name fails to compile
+      // rather than silently no-opping at runtime.
+      const patch: TablesUpdate<'profiles'> = {}
+
+      if (edits.displayName !== undefined) {
+        const trimmed = edits.displayName.trim()
+        if (trimmed.length === 0) throw new Error('Your name can’t be empty.')
+        patch.display_name = trimmed.slice(0, 60)
+      }
+      if (edits.avatarEmoji !== undefined) patch.avatar_emoji = edits.avatarEmoji
+      if (edits.avatarColor !== undefined) patch.avatar_color = edits.avatarColor
 
       const { data, error } = await supabase
         .from('profiles')
-        .update({ display_name: trimmed.slice(0, 60) })
+        .update(patch)
         .eq('id', user.id)
         .select('*')
         .single()
       if (error) throw new Error(authErrorMessage(error))
 
       // Keep the sign-up metadata in step, so a future trigger run agrees.
-      await supabase.auth.updateUser({ data: { display_name: trimmed.slice(0, 60) } })
+      if (typeof patch.display_name === 'string') {
+        await supabase.auth.updateUser({ data: { display_name: patch.display_name } })
+      }
 
       return data
     },

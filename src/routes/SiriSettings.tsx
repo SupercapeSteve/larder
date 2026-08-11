@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Check, Copy, KeyRound, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Check, Copy, KeyRound, Mic, Plus, Trash2 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ErrorBanner, FullPageSpinner, Spinner, TextField } from '@/components/ui'
@@ -226,9 +226,23 @@ export default function SiriSettings() {
               <strong>3.</strong> Method: <code className="font-mono">POST</code>
             </li>
             <li>
-              <strong>4.</strong> Headers — add two:
-              <CopyRow value="Authorization: Bearer larder_your_token_here" onCopy={() => copy('Authorization', 'Header name')} />
-              <CopyRow value="Content-Type: application/json" onCopy={() => copy('Content-Type', 'Header name')} />
+              <strong>4.</strong> Headers — add two. Key on the left, value on the right:
+              {minted ? (
+                <CopyRow
+                  value={`Bearer ${minted}`}
+                  label="Authorization"
+                  onCopy={() => copy(`Bearer ${minted}`, 'Authorization value')}
+                />
+              ) : (
+                <span className="mt-1.5 block rounded-lg bg-larder-100 px-2 py-1.5 font-mono text-xs text-larder-600 dark:bg-larder-950 dark:text-larder-400">
+                  Authorization: Bearer &lt;generate a token above to copy this&gt;
+                </span>
+              )}
+              <CopyRow
+                value="application/json"
+                label="Content-Type"
+                onCopy={() => copy('application/json', 'Content-Type value')}
+              />
             </li>
             <li>
               <strong>5.</strong> Request Body → JSON, with <code className="font-mono">action</code>{' '}
@@ -245,11 +259,22 @@ export default function SiriSettings() {
             </li>
           </ol>
 
+          <a href="shortcuts://create-shortcut" className="btn-secondary mt-4 w-full gap-2">
+            <Mic className="h-4 w-4" aria-hidden />
+            Open Shortcuts
+          </a>
+
           <p className="mt-4 text-xs text-larder-600 dark:text-larder-400">
             Set <code className="font-mono">action</code> to{' '}
             <code className="font-mono">read</code> to have Siri read the list back, or{' '}
             <code className="font-mono">check</code> with{' '}
             <code className="font-mono">text</code> to tick something off.
+          </p>
+
+          <p className="mt-3 text-xs text-larder-500">
+            Larder can't build the shortcut for you: Apple requires imported shortcut files to be
+            cryptographically signed, and signing can't happen on-device. These steps are the
+            shortest path there is.
           </p>
         </section>
       </div>
@@ -276,9 +301,22 @@ export default function SiriSettings() {
   )
 }
 
-function CopyRow({ value, onCopy }: { value: string; onCopy: () => void }) {
+function CopyRow({
+  value,
+  label,
+  onCopy,
+}: {
+  value: string
+  label?: string
+  onCopy: () => void
+}) {
   return (
     <span className="mt-1.5 flex items-center gap-2">
+      {label ? (
+        <code className="shrink-0 rounded-lg bg-larder-200 px-1.5 py-1.5 font-mono text-[11px] text-larder-800 dark:bg-larder-800 dark:text-larder-200">
+          {label}
+        </code>
+      ) : null}
       <code className="min-w-0 flex-1 break-all rounded-lg bg-larder-100 px-2 py-1.5 font-mono text-xs text-larder-900 dark:bg-larder-950 dark:text-larder-100">
         {value}
       </code>
