@@ -20,11 +20,16 @@ export class MissingEnvError extends Error {
     super(
       `Larder cannot start — missing environment variable${missing.length > 1 ? 's' : ''}: ` +
         `${missing.join(', ')}.\n\n` +
-        `Create a .env.local file in the project root containing:\n` +
+        `Running locally? Create .env.local in the project root:\n` +
         `  VITE_SUPABASE_URL=https://<project-ref>.supabase.co\n` +
-        `  VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...\n\n` +
-        `Both names must keep the VITE_ prefix or Vite will not expose them to the client. ` +
-        `After editing .env.local you must restart the dev server — Vite only reads it at startup.`,
+        `  VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...\n` +
+        `then restart the dev server — Vite only reads that file at startup.\n\n` +
+        `Deployed? Add both as environment variables in your host (Vercel:\n` +
+        `Settings → Environment Variables → Production), then REDEPLOY.\n` +
+        `Vite inlines these at build time, so setting them without a fresh\n` +
+        `build changes nothing — the old bundle still has the empty values.\n\n` +
+        `Either way both names must keep the VITE_ prefix, or Vite will not\n` +
+        `expose them to the client and they arrive as undefined.`,
     )
     this.name = 'MissingEnvError'
     this.missing = missing
