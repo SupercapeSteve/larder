@@ -357,16 +357,35 @@ $$;
 -- between them — so they could re-parent household 1's list into household 2
 -- and walk off with every item on it, invisibly to household 1. No product
 -- feature moves a list or an item between households, so forbid it outright.
-create or replace function public.forbid_reparent()
+-- One function per table, deliberately.
+--
+-- A single shared function guarded by `if tg_table_name = 'lists' and
+-- new.household_id ...` looks tidier and is broken: PL/pgSQL evaluates the
+-- whole condition as one SQL expression, SQL does not guarantee short-circuit
+-- evaluation of AND, and so `new.household_id` still has to resolve even when
+-- the trigger fired on `items`. It cannot, and every UPDATE on items died with
+-- `record "new" has no field "household_id"` — which surfaced as check-offs
+-- silently refusing to stick.
+create or replace function public.forbid_list_reparent()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 begin
-  if tg_table_name = 'lists' and new.household_id is distinct from old.household_id then
+  if new.household_id is distinct from old.household_id then
     raise exception 'LIST_HOUSEHOLD_IMMUTABLE';
   end if;
-  if tg_table_name = 'items' and new.list_id is distinct from old.list_id then
+  return new;
+end;
+$$;
+
+create or replace function public.forbid_item_reparent()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.list_id is distinct from old.list_id then
     raise exception 'ITEM_LIST_IMMUTABLE';
   end if;
   return new;
@@ -376,12 +395,12 @@ $$;
 drop trigger if exists lists_forbid_reparent on public.lists;
 create trigger lists_forbid_reparent
   before update on public.lists
-  for each row execute function public.forbid_reparent();
+  for each row execute function public.forbid_list_reparent();
 
 drop trigger if exists items_forbid_reparent on public.items;
 create trigger items_forbid_reparent
   before update on public.items
-  for each row execute function public.forbid_reparent();
+  for each row execute function public.forbid_item_reparent();
 
 -- ── Losing membership means losing everything, Siri included ───────────────
 -- Two invariants that no policy can express, both enforced the moment a

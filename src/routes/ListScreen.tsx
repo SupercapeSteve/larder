@@ -114,6 +114,16 @@ export default function ListScreen() {
     })
   }
 
+  // Always through here, never a bare mutate(). A rejected toggle rolls the
+  // optimistic update back, and without a message that reads as "the checkbox
+  // is broken" rather than "the server said no".
+  function onToggle(item: Item) {
+    toggleItem.mutate(
+      { item, checked: !item.checked },
+      { onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }) },
+    )
+  }
+
   function onSaveEdits(item: Item, edits: ItemEdits) {
     updateItem.mutate(
       { item, edits },
@@ -260,7 +270,7 @@ export default function ListScreen() {
                           key={item.id}
                           item={item}
                           nameFor={nameFor}
-                          onToggle={(i) => toggleItem.mutate({ item: i, checked: !i.checked })}
+                          onToggle={onToggle}
                           onEdit={setEditing}
                           onDelete={onDelete}
                         />
@@ -279,7 +289,7 @@ export default function ListScreen() {
                     key={item.id}
                     item={item}
                     nameFor={nameFor}
-                    onToggle={(i) => toggleItem.mutate({ item: i, checked: !i.checked })}
+                    onToggle={onToggle}
                     onEdit={setEditing}
                     onDelete={onDelete}
                   />
@@ -319,7 +329,7 @@ export default function ListScreen() {
                       key={item.id}
                       item={item}
                       nameFor={nameFor}
-                      onToggle={(i) => toggleItem.mutate({ item: i, checked: !i.checked })}
+                      onToggle={onToggle}
                       onEdit={setEditing}
                       onDelete={onDelete}
                     />
