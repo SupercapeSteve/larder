@@ -6,6 +6,7 @@ import {
   Copy,
   Crown,
   DoorOpen,
+  LayoutList,
   Mic,
   Pencil,
   RefreshCw,
@@ -222,6 +223,16 @@ export default function HouseholdDetail() {
             </div>
           ))}
         </SettingsSection>
+
+        <Link to={`/h/${household.id}/aisles`} className="card flex items-center gap-3 px-4 py-4">
+          <LayoutList className="h-5 w-5 shrink-0 text-larder-600 dark:text-larder-400" aria-hidden />
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="text-sm font-medium text-larder-950 dark:text-larder-50">Aisles</span>
+            <span className="text-xs text-larder-600 dark:text-larder-400">
+              See what's in each aisle and correct it
+            </span>
+          </span>
+        </Link>
 
         <Link to={`/h/${household.id}/siri`} className="card flex items-center gap-3 px-4 py-4">
           <Mic className="h-5 w-5 shrink-0 text-larder-600 dark:text-larder-400" aria-hidden />

@@ -23,6 +23,7 @@ import {
 } from '@/hooks/useItems'
 import { useRealtimeItems } from '@/hooks/useRealtimeItems'
 import { useRealtimeProfiles } from '@/hooks/useRealtimeProfiles'
+import { useCategoryRules, useSaveCategoryRule } from '@/hooks/useCategoryRules'
 import { usePreferences } from '@/hooks/usePreferences'
 import {
   CATEGORY_DESCRIPTION,
@@ -49,6 +50,8 @@ export default function ListScreen() {
   const itemsQuery = useItems(list?.id)
   const { status: connection } = useRealtimeItems(list?.id)
   useRealtimeProfiles(householdId)
+  const rules = useCategoryRules(householdId).data ?? []
+  const saveRule = useSaveCategoryRule(householdId ?? '')
 
   const listId = list?.id ?? ''
   const addItem = useAddItem(listId)
@@ -104,7 +107,7 @@ export default function ListScreen() {
 
   function onAdd(raw: string) {
     if (!listId) return
-    const draft = draftFromInput(queryClient, listId, raw)
+    const draft = draftFromInput(queryClient, listId, raw, rules)
     if (!draft) return
     addItem.mutate(draft, {
       onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
@@ -143,6 +146,12 @@ export default function ListScreen() {
       { item, edits },
       { onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }) },
     )
+
+    // Changing the aisle by hand is a correction — remember it, so the same
+    // thing is filed properly next shop instead of needing the same fix again.
+    if (edits.category && edits.category !== item.category && householdId) {
+      saveRule.mutate({ keyword: edits.name, category: edits.category })
+    }
   }
 
   if (householdsQuery.isError) {

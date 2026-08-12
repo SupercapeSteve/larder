@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { qk } from '@/lib/queryClient'
 import { rpcErrorMessage } from '@/lib/authErrors'
 import { useUser } from '@/hooks/useAuth'
-import { categorise } from '@/lib/categories'
+import { categorise, type CategoryRule } from '@/lib/categories'
 import { parseItemInput } from '@/lib/parseItem'
 import { beginLocalWrite, endLocalWrite, newId } from '@/lib/itemSync'
 import type { Item } from '@/types/database'
@@ -128,15 +128,24 @@ export function useAddItem(listId: string) {
   })
 }
 
-/** Turns what the user typed into a draft, ready for `useAddItem`. */
-export function draftFromInput(client: QueryClient, listId: string, raw: string): (NewItemDraft & { id: string; sort_order: number }) | null {
+/**
+ * Turns what the user typed into a draft, ready for `useAddItem`.
+ * `rules` are the household's learned corrections; they outrank the built-in
+ * keyword map, which is the whole point of having them.
+ */
+export function draftFromInput(
+  client: QueryClient,
+  listId: string,
+  raw: string,
+  rules: readonly CategoryRule[] = [],
+): (NewItemDraft & { id: string; sort_order: number }) | null {
   const parsed = parseItemInput(raw)
   if (parsed.name.length === 0) return null
   return {
     id: newId(),
     name: parsed.name.slice(0, 200),
     quantity: parsed.quantity,
-    category: categorise(parsed.name),
+    category: categorise(parsed.name, rules),
     note: null,
     sort_order: nextSortOrder(client, listId),
   }

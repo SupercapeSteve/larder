@@ -185,6 +185,38 @@ export type Database = {
           },
         ]
       }
+      category_rules: {
+        Row: {
+          household_id: string
+          keyword: string
+          category: string
+          created_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          household_id: string
+          keyword: string
+          category: string
+          created_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          household_id?: string
+          keyword?: string
+          category?: string
+          created_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'category_rules_household_id_fkey'
+            columns: ['household_id']
+            isOneToOne: false
+            referencedRelation: 'households'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       api_tokens: {
         Row: {
           id: string
@@ -241,6 +273,18 @@ export type Database = {
       }
       can_access_list: {
         Args: { lid: string }
+        Returns: boolean
+      }
+      can_edit_list: {
+        Args: { lid: string }
+        Returns: boolean
+      }
+      can_edit_household: {
+        Args: { hid: string }
+        Returns: boolean
+      }
+      is_household_admin: {
+        Args: { hid: string }
         Returns: boolean
       }
       is_list_household_owner: {

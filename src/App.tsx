@@ -15,6 +15,7 @@ import Setup from '@/routes/Setup'
 import HouseholdPicker from '@/routes/HouseholdPicker'
 import HouseholdDetail from '@/routes/HouseholdDetail'
 import ListScreen from '@/routes/ListScreen'
+import Aisles from '@/routes/Aisles'
 import SiriSettings from '@/routes/SiriSettings'
 import Account from '@/routes/Account'
 import NotFound from '@/routes/NotFound'
@@ -51,6 +52,7 @@ export default function App() {
               <Route path="/households" element={<HouseholdPicker />} />
               <Route path="/h/:householdId" element={<ListScreen />} />
               <Route path="/h/:householdId/household" element={<HouseholdDetail />} />
+              <Route path="/h/:householdId/aisles" element={<Aisles />} />
               <Route path="/h/:householdId/siri" element={<SiriSettings />} />
               <Route path="/account" element={<Account />} />
             </Route>

@@ -190,9 +190,35 @@ const INDEX: ReadonlyArray<readonly [string, Category]> = Object.entries(KEYWORD
   .flatMap(([category, words]) => words.map((word) => [word, category as Category] as const))
   .sort((a, b) => b[0].length - a[0].length)
 
-export function categorise(name: string): Category {
+/** A household's learned correction: this keyword means this aisle. */
+export type CategoryRule = {
+  keyword: string
+  category: string
+}
+
+/**
+ * Where does this item belong?
+ *
+ * The household's own rules win over the built-in map, always — they exist
+ * precisely because the built-in map got something wrong. Within each set the
+ * longest match wins, so a specific phrase beats a generic word: "tortilla
+ * chips" is a snack even though "tortilla" is a bakery keyword.
+ */
+export function categorise(name: string, rules: readonly CategoryRule[] = []): Category {
   const haystack = name.toLowerCase().trim()
   if (haystack.length === 0) return DEFAULT_CATEGORY
+
+  if (rules.length > 0) {
+    let best: { length: number; category: Category } | null = null
+    for (const rule of rules) {
+      const keyword = rule.keyword.toLowerCase().trim()
+      if (keyword.length === 0 || !haystack.includes(keyword)) continue
+      if (!best || keyword.length > best.length) {
+        best = { length: keyword.length, category: toCategory(rule.category) }
+      }
+    }
+    if (best) return best.category
+  }
 
   for (const [keyword, category] of INDEX) {
     if (haystack.includes(keyword)) return category
