@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ChevronDown, Settings, ShoppingBasket, Trash2, UserCircle2 } from 'lucide-react'
+import { ChevronDown, Eye, Settings, ShoppingBasket, Trash2, UserCircle2 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { AddItemBar } from '@/components/AddItemBar'
 import { ItemRow } from '@/components/ItemRow'
@@ -30,6 +30,7 @@ import {
   toCategory,
   type Category,
 } from '@/lib/categories'
+import { can } from '@/lib/permissions'
 import { LAST_HOUSEHOLD_KEY, writeLocal } from '@/lib/storage'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Item } from '@/types/database'
@@ -128,6 +129,7 @@ export default function ListScreen() {
   // optimistic update back, and without a message that reads as "the checkbox
   // is broken" rather than "the server said no".
   function onToggle(item: Item) {
+    if (household && !can(household.role, 'checkItems')) return
     toggleItem.mutate(
       { item, checked: !item.checked },
       { onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }) },
@@ -188,7 +190,18 @@ export default function ListScreen() {
     </div>
   )
 
-  const footer = <AddItemBar onAdd={onAdd} disabled={!listId} />
+  // A viewer's writes are refused by RLS, so offering the controls would only
+  // produce error toasts. Say why instead.
+  const canEdit = household ? can(household.role, 'addItems') : true
+
+  const footer = canEdit ? (
+    <AddItemBar onAdd={onAdd} disabled={!listId} />
+  ) : (
+    <p className="flex items-center justify-center gap-2 py-3 text-xs text-larder-600 dark:text-larder-400">
+      <Eye className="h-3.5 w-3.5" aria-hidden />
+      You have view-only access to this list.
+    </p>
+  )
 
   // One gate for the whole screen. Members resolve alongside items, so
   // attribution is present on first paint instead of popping in a beat later

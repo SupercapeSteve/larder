@@ -144,16 +144,22 @@ const KEYWORDS: Record<Exclude<Category, 'Other'>, readonly string[]> = {
     'vinegar', 'yeast',
   ],
   Snacks: [
-    'biscuit', 'candy', 'chocolate', 'crackers', 'crisp', 'flapjack', 'nut', 'popcorn',
-    'pretzel', 'raisin', 'snack', 'sweets', 'trail mix',
+    // "tortilla chips" must outrank Bakery's "tortilla" — INDEX sorts longest
+    // first, so the more specific phrase wins. Same trick for "corn chips".
+    'tortilla chips', 'corn chips', 'potato chips', 'pita chips', 'trail mix',
+    'chocolate', 'crackers', 'popcorn', 'pretzel', 'flapjack', 'biscuit', 'granola bar',
+    'peanuts', 'almonds', 'cashews', 'pistachio', 'raisin', 'nachos', 'doritos',
+    'sweets', 'candy', 'crisps', 'crisp', 'chips', 'snack', 'nuts', 'jerky',
   ],
   Drinks: [
     'coffee', 'cordial', 'juice', 'kombucha', 'lemonade', 'squash drink', 'tea', 'water',
     'soda', 'cola', 'smoothie', 'energy drink', 'sparkling water',
   ],
   Alcohol: [
-    'ale', 'beer', 'brandy', 'cider', 'gin', 'lager', 'prosecco', 'rum', 'spirits', 'tequila',
-    'vodka', 'whisky', 'whiskey', 'wine',
+    // No bare "ale": it matches inside kale, tamale and pale. "pale ale" and
+    // "ginger ale" are spelled out instead.
+    'pale ale', 'ginger ale', 'beer', 'brandy', 'cider', 'gin', 'lager', 'prosecco', 'rum',
+    'spirits', 'tequila', 'vodka', 'whisky', 'whiskey', 'wine',
   ],
   Health: [
     'aspirin', 'bandage', 'condom', 'ibuprofen', 'multivitamin', 'painkiller', 'paracetamol',

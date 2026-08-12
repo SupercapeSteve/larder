@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+﻿import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -29,6 +29,8 @@ import {
   useSetMemberRole,
   type MemberWithProfile,
 } from '@/hooks/useHouseholds'
+import { RoleSheet } from '@/components/RoleSheet'
+import { can, canActOn, ROLE_LABEL, ROLE_SUMMARY, type Role } from '@/lib/permissions'
 import { copyToClipboard } from '@/lib/clipboard'
 import { LAST_HOUSEHOLD_KEY, removeLocal } from '@/lib/storage'
 
@@ -46,7 +48,7 @@ export default function HouseholdDetail() {
 
   const [copied, setCopied] = useState(false)
   const [pendingRemoval, setPendingRemoval] = useState<MemberWithProfile | null>(null)
-  const [pendingDemotion, setPendingDemotion] = useState<MemberWithProfile | null>(null)
+  const [editingRole, setEditingRole] = useState<MemberWithProfile | null>(null)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [confirmRegenerate, setConfirmRegenerate] = useState(false)
 
@@ -66,8 +68,9 @@ export default function HouseholdDetail() {
   }
 
   const members = membersQuery.data ?? []
-  const isOwner = household.role === 'owner'
-  const ownerCount = members.filter((m) => m.role === 'owner').length
+  const myRole = household.role
+  const isOwner = myRole === 'owner'
+  const canManage = can(myRole, 'removeMembers')
 
   async function onCopyCode() {
     if (!household) return
@@ -77,20 +80,19 @@ export default function HouseholdDetail() {
       setTimeout(() => setCopied(false), 2000)
       showToast({ message: 'Join code copied.' })
     } else {
-      showToast({ message: 'Couldn’t copy — read it out instead.', tone: 'error' })
+      showToast({ message: 'Couldnâ€™t copy â€” read it out instead.', tone: 'error' })
     }
   }
 
-  function changeRole(member: MemberWithProfile, role: 'owner' | 'member') {
+  function changeRole(member: MemberWithProfile, role: Role) {
     setMemberRole.mutate(
       { userId: member.userId, role },
       {
         onSuccess: () =>
           showToast({
-            message:
-              role === 'owner'
-                ? `${member.isYou ? 'You are' : `${member.displayName} is`} now an owner.`
-                : `${member.isYou ? 'You are' : `${member.displayName} is`} now a member.`,
+            message: `${member.isYou ? 'You are' : `${member.displayName} is`} now ${
+              role === 'admin' || role === 'owner' ? 'an' : 'a'
+            } ${ROLE_LABEL[role].toLowerCase()}.`,
           }),
         onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
       },
@@ -118,13 +120,13 @@ export default function HouseholdDetail() {
         <NameSection
           householdId={household.id}
           name={household.name}
-          canEdit={isOwner}
+          canEdit={can(myRole, 'renameHousehold')}
         />
 
-        {/* ── Join code ─────────────────────────────────────────────────── */}
+        {/* â”€â”€ Join code â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <SettingsSection
           title="Invite code"
-          description="Read it out or send it over. No ambiguous letters — there's no O, I, L, 0 or 1 in a Larder code."
+          description="Read it out or send it over. No ambiguous letters â€” there's no O, I, L, 0 or 1 in a Larder code."
         >
           <div className="px-4 py-4">
             <div className="flex items-center gap-3">
@@ -145,7 +147,7 @@ export default function HouseholdDetail() {
               </button>
             </div>
 
-            {isOwner ? (
+            {can(myRole, 'rotateCode') ? (
               <button
                 type="button"
                 onClick={() => setConfirmRegenerate(true)}
@@ -159,10 +161,14 @@ export default function HouseholdDetail() {
           </div>
         </SettingsSection>
 
-        {/* ── Members ───────────────────────────────────────────────────── */}
+        {/* â”€â”€ Members â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <SettingsSection
           title={`${members.length} ${members.length === 1 ? 'member' : 'members'}`}
-          description={isOwner ? 'Owners can rename the household, rotate the code and manage members.' : undefined}
+          description={
+            isOwner
+              ? 'Tap the shield to change what somebody can do.'
+              : `You're ${myRole === 'admin' ? 'an' : 'a'} ${ROLE_LABEL[myRole].toLowerCase()} here — ${ROLE_SUMMARY[myRole].toLowerCase()}.`
+          }
         >
           {members.map((member) => (
             <div key={member.userId} className="flex items-center gap-3 px-4 py-3">
@@ -181,54 +187,36 @@ export default function HouseholdDetail() {
                   {member.isYou ? <span className="text-larder-500"> (you)</span> : null}
                 </span>
                 <span className="mt-0.5 flex items-center gap-1 text-xs text-larder-600 dark:text-larder-400">
-                  {member.role === 'owner' ? (
-                    <>
-                      <Crown className="h-3 w-3" aria-hidden />
-                      Owner
-                    </>
-                  ) : (
-                    'Member'
-                  )}
+                  {member.role === 'owner' ? <Crown className="h-3 w-3" aria-hidden /> : null}
+                  {ROLE_LABEL[member.role]}
+                  <span className="text-larder-400">Â· {ROLE_SUMMARY[member.role]}</span>
                 </span>
               </span>
 
-              {isOwner ? (
-                <div className="flex shrink-0 items-center gap-1">
-                  {member.role === 'member' ? (
-                    <button
-                      type="button"
-                      onClick={() => changeRole(member, 'owner')}
-                      className="tap rounded-xl text-larder-600 dark:text-larder-400"
-                      aria-label={`Make ${member.displayName} an owner`}
-                      title="Make owner"
-                    >
-                      <ShieldCheck className="h-5 w-5" aria-hidden />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setPendingDemotion(member)}
-                      disabled={ownerCount <= 1}
-                      className="tap rounded-xl text-larder-600 disabled:opacity-30 dark:text-larder-400"
-                      aria-label={`Remove owner rights from ${member.displayName}`}
-                      title={ownerCount <= 1 ? 'A household needs an owner' : 'Make member'}
-                    >
-                      <Crown className="h-5 w-5" aria-hidden />
-                    </button>
-                  )}
+              <div className="flex shrink-0 items-center gap-1">
+                {isOwner ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditingRole(member)}
+                    className="tap rounded-xl text-larder-600 dark:text-larder-400"
+                    aria-label={`Change ${member.displayName}'s role`}
+                    title="Change role"
+                  >
+                    <ShieldCheck className="h-5 w-5" aria-hidden />
+                  </button>
+                ) : null}
 
-                  {!member.isYou ? (
-                    <button
-                      type="button"
-                      onClick={() => setPendingRemoval(member)}
-                      className="tap rounded-xl text-red-600 dark:text-red-400"
-                      aria-label={`Remove ${member.displayName}`}
-                    >
-                      <UserMinus className="h-5 w-5" aria-hidden />
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
+                {canManage && !member.isYou && canActOn(myRole, member.role) ? (
+                  <button
+                    type="button"
+                    onClick={() => setPendingRemoval(member)}
+                    className="tap rounded-xl text-red-600 dark:text-red-400"
+                    aria-label={`Remove ${member.displayName}`}
+                  >
+                    <UserMinus className="h-5 w-5" aria-hidden />
+                  </button>
+                ) : null}
+              </div>
             </div>
           ))}
         </SettingsSection>
@@ -258,7 +246,7 @@ export default function HouseholdDetail() {
       <ConfirmDialog
         open={confirmRegenerate}
         title="Generate a new invite code?"
-        body="The current code stops working immediately. Anyone already in the household stays in — they just can't re-share the old code."
+        body="The current code stops working immediately. Anyone already in the household stays in â€” they just can't re-share the old code."
         confirmLabel="Generate"
         onCancel={() => setConfirmRegenerate(false)}
         onConfirm={() => {
@@ -270,21 +258,17 @@ export default function HouseholdDetail() {
         }}
       />
 
-      <ConfirmDialog
-        open={pendingDemotion !== null}
-        title={`Remove owner rights from ${pendingDemotion?.isYou ? 'yourself' : (pendingDemotion?.displayName ?? 'this member')}?`}
-        body={
-          pendingDemotion?.isYou
-            ? "You'll no longer be able to rename the household, rotate the code, or manage members."
-            : "They'll keep access to the list but lose the ability to manage the household."
-        }
-        confirmLabel="Make member"
-        tone="danger"
-        onCancel={() => setPendingDemotion(null)}
-        onConfirm={() => {
-          const target = pendingDemotion
-          setPendingDemotion(null)
-          if (target) changeRole(target, 'member')
+      <RoleSheet
+        open={editingRole !== null}
+        personName={editingRole?.isYou ? 'Your' : (editingRole?.displayName ?? '')}
+        current={editingRole?.role ?? 'member'}
+        actorRole={myRole}
+        busy={setMemberRole.isPending}
+        onClose={() => setEditingRole(null)}
+        onSelect={(role) => {
+          const target = editingRole
+          setEditingRole(null)
+          if (target && target.role !== role) changeRole(target, role)
         }}
       />
 
@@ -337,7 +321,7 @@ export default function HouseholdDetail() {
   )
 }
 
-/* ── Household name ───────────────────────────────────────────────────────── */
+/* â”€â”€ Household name â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function NameSection({
   householdId,
@@ -424,3 +408,4 @@ function NameSection({
     </SettingsSection>
   )
 }
+

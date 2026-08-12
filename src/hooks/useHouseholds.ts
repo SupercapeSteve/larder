@@ -4,9 +4,10 @@ import { qk } from '@/lib/queryClient'
 import { rpcErrorMessage } from '@/lib/authErrors'
 import { useUser } from '@/hooks/useAuth'
 import { LAST_HOUSEHOLD_KEY, writeLocal } from '@/lib/storage'
+import { toRole, type Role } from '@/lib/permissions'
 import { isCreatedHousehold, type CreatedHousehold, type Household, type List } from '@/types/database'
 
-export type HouseholdRole = 'owner' | 'member'
+export type HouseholdRole = Role
 
 export type HouseholdSummary = Household & {
   role: HouseholdRole
@@ -24,9 +25,6 @@ export type MemberWithProfile = {
   isYou: boolean
 }
 
-function toRole(value: string): HouseholdRole {
-  return value === 'owner' ? 'owner' : 'member'
-}
 
 /**
  * Every household the signed-in user belongs to.
