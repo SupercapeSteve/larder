@@ -72,6 +72,11 @@ export function useMembers(householdId: string | undefined) {
   return useQuery({
     queryKey: qk.members(householdId ?? 'none'),
     enabled: Boolean(householdId && user),
+    // Belt and braces alongside the realtime subscription: if the socket is
+    // down (backgrounded on iOS, flaky signal in a shop), coming back to the
+    // tab still picks up somebody's new avatar or name.
+    refetchOnWindowFocus: true,
+    staleTime: 0,
     queryFn: async (): Promise<MemberWithProfile[]> => {
       if (!householdId) return []
 

@@ -22,6 +22,7 @@ import {
   type ItemEdits,
 } from '@/hooks/useItems'
 import { useRealtimeItems } from '@/hooks/useRealtimeItems'
+import { useRealtimeProfiles } from '@/hooks/useRealtimeProfiles'
 import { usePreferences } from '@/hooks/usePreferences'
 import {
   CATEGORY_DESCRIPTION,
@@ -47,6 +48,7 @@ export default function ListScreen() {
   const membersQuery = useMembers(householdId)
   const itemsQuery = useItems(list?.id)
   const { status: connection } = useRealtimeItems(list?.id)
+  useRealtimeProfiles(householdId)
 
   const listId = list?.id ?? ''
   const addItem = useAddItem(listId)

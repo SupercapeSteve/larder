@@ -29,6 +29,7 @@ import {
   useSetMemberRole,
   type MemberWithProfile,
 } from '@/hooks/useHouseholds'
+import { useRealtimeProfiles } from '@/hooks/useRealtimeProfiles'
 import { RoleSheet } from '@/components/RoleSheet'
 import { can, canActOn, ROLE_LABEL, ROLE_SUMMARY, type Role } from '@/lib/permissions'
 import { copyToClipboard } from '@/lib/clipboard'
@@ -45,6 +46,7 @@ export default function HouseholdDetail() {
   const setMemberRole = useSetMemberRole(householdId ?? '')
   const regenerateCode = useRegenerateJoinCode(householdId ?? '')
   const leaveHousehold = useLeaveHousehold()
+  useRealtimeProfiles(householdId)
 
   const [copied, setCopied] = useState(false)
   const [pendingRemoval, setPendingRemoval] = useState<MemberWithProfile | null>(null)
