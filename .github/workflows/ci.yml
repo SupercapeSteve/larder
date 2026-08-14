@@ -1,0 +1,66 @@
+name: ci
+
+# A commit that fails to typecheck or build must not reach production. Vercel
+# deploys from main automatically, so this is the only thing standing between a
+# bad push and the live app.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # npm 11 blocks install scripts by default; package.json pins the two we
+      # allow (esbuild, sharp) so this stays reproducible.
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npx tsc -b --pretty false
+
+      # The build needs the VITE_ vars to exist, but not to be real: nothing is
+      # contacted at build time, and env.ts refuses to start without them.
+      - name: Build
+        env:
+          VITE_SUPABASE_URL: https://ci.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+        run: npm run build
+
+      - name: Check no secrets leaked into the bundle
+        run: |
+          set -euo pipefail
+          # Match key *values*, not the prefixes. supabase-js ships the literals
+          # "sb_publishable_" and "sb_secret_" in its own key-format detection,
+          # so a bare substring search always fires and teaches everyone to
+          # ignore this step.
+          #   sb_secret_<20+ chars>  a real secret key
+          #   eyJhbGciOi...          a JWT, i.e. a legacy service-role key
+          if grep -rlE 'sb_secret_[A-Za-z0-9_-]{20,}|eyJhbGciOi[A-Za-z0-9_-]{20,}' dist/assets 2>/dev/null; then
+            echo "::error::A real key value reached the client bundle."
+            exit 1
+          fi
+          echo "No key values in dist/assets."
+
+      - name: Check icons and manifest are present
+        run: |
+          set -euo pipefail
+          for f in apple-touch-icon.png pwa-192x192.png pwa-512x512.png \
+                   pwa-maskable-512x512.png manifest.webmanifest sw.js; do
+            test -f "dist/$f" || { echo "::error::dist/$f is missing"; exit 1; }
+          done
+          echo "PWA assets present."
