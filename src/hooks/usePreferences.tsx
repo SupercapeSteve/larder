@@ -224,7 +224,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         // No saved settings yet — this is the first sign-in since the feature
         // landed. Keep whatever is already on this device and adopt it as the
         // account's, rather than resetting somebody's existing choices.
-        void supabase.from('profiles').update({ preferences: latest.current }).eq('id', id)
+        void save(latest.current, id)
       })
 
     return () => {
@@ -232,30 +232,43 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     }
   }, [userId])
 
-  /** Persist a user-initiated change to the account. */
-  const save = useCallback((next: Preferences) => {
-    const id = loadedFor.current
+  /**
+   * Persist to the account.
+   *
+   * `await` is load-bearing. A Supabase query builder is a lazy thenable: it
+   * issues no request until something calls `.then()` on it. The original
+   * `void supabase.from(...).update(...)` therefore built a query and threw it
+   * away without ever contacting the server, which is why every account had
+   * `preferences = null` and there was nothing to restore on sign-in.
+   */
+  const save = useCallback(async (next: Preferences, forId?: string) => {
+    const id = forId ?? loadedFor.current
     if (!id) return
-    // Fire and forget: the change is already applied locally, and a failed
-    // write should not block the UI or throw an error at somebody for
-    // picking a colour. It will be re-sent on the next change.
-    void supabase.from('profiles').update({ preferences: next }).eq('id', id)
+
+    const { error } = await supabase.from('profiles').update({ preferences: next }).eq('id', id)
+    if (error) {
+      // Not worth interrupting somebody for, but never silent again.
+      console.warn('[larder] could not save preferences:', error.message)
+    }
   }, [])
 
   const setPreference = useCallback(
     <K extends keyof Preferences>(key: K, value: Preferences[K]) => {
-      setPreferences((current) => {
-        const next = { ...current, [key]: value }
-        save(next)
-        return next
-      })
+      // Built from the ref rather than inside the state updater: React may
+      // invoke an updater more than once, and a network write does not belong
+      // somewhere that is expected to be pure.
+      const next = { ...latest.current, [key]: value }
+      latest.current = next
+      setPreferences(next)
+      void save(next)
     },
     [save],
   )
 
   const resetPreferences = useCallback(() => {
+    latest.current = DEFAULTS
     setPreferences(DEFAULTS)
-    save(DEFAULTS)
+    void save(DEFAULTS)
   }, [save])
 
   const value = useMemo(
