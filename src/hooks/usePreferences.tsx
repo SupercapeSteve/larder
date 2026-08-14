@@ -172,9 +172,20 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     return () => media.removeEventListener('change', onChange)
   }, [preferences])
 
+  // Depend on the id, not the user object.
+  //
+  // AuthProvider sets the session twice on load — once from getSession() and
+  // once from the INITIAL_SESSION event — producing two different user objects
+  // with the same id. Keying this effect on the object made it run twice: the
+  // first run claimed the id and started the fetch, the cleanup cancelled that
+  // fetch, and the second run saw the id already claimed and returned without
+  // fetching. Preferences were never loaded. A string dependency makes the
+  // second render a no-op instead.
+  const userId = user?.id ?? null
+
   // Sign in → adopt the account's settings. Sign out / switch → start clean.
   useEffect(() => {
-    const id = user?.id ?? null
+    const id = userId
     if (id === loadedFor.current) return
 
     const previous = loadedFor.current
@@ -196,7 +207,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       .eq('id', id)
       .maybeSingle()
       .then(({ data, error }) => {
-        if (!active || error) return
+        if (!active) return
+        if (error) {
+          // Not fatal — the device keeps whatever it has — but silence here is
+          // what made the original failure so hard to see.
+          console.warn('[larder] could not load account preferences:', error.message)
+          return
+        }
 
         const remote = parsePreferences(data?.preferences)
         if (remote) {
@@ -213,7 +230,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false
     }
-  }, [user])
+  }, [userId])
 
   /** Persist a user-initiated change to the account. */
   const save = useCallback((next: Preferences) => {
