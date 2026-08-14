@@ -26,8 +26,26 @@ port = 54323
 
 [auth]
 enabled = true
-site_url = "http://localhost:5173"
-additional_redirect_urls = ["http://localhost:5173/update-password"]
+# Where Supabase sends people when an email link has no valid redirect_to, and
+# the fallback for every auth email. Left at Supabase's default of
+# http://localhost:3000 this silently breaks every reset and confirmation link
+# on every device that is not the developer's laptop.
+site_url = "https://larder-topaz.vercel.app"
+
+# A redirect_to that is not on this list is ignored and replaced by site_url —
+# no error, no warning, the link just goes somewhere useless. Both real routes
+# are listed explicitly, plus a wildcard for preview deploys and localhost for
+# development.
+additional_redirect_urls = [
+  "https://larder-topaz.vercel.app",
+  "https://larder-topaz.vercel.app/confirm",
+  "https://larder-topaz.vercel.app/update-password",
+  "https://larder-topaz.vercel.app/**",
+  "http://localhost:5173",
+  "http://localhost:5173/confirm",
+  "http://localhost:5173/update-password",
+  "http://localhost:5173/**",
+]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
@@ -35,6 +53,13 @@ enable_signup = true
 
 [auth.email]
 enable_signup = true
+# These are not cosmetic. `config push` sends the whole auth block, so leaving
+# them unset pushes the CLI's local-dev defaults — which drop the resend
+# interval to 1 second (an open invitation to use the project as a mail relay)
+# and shorten the one-time code. Pinned to the hosted defaults.
+max_frequency = "60s"
+otp_length = 8
+otp_expiry = 3600
 # Password auth only — Larder never issues a magic link. On iOS a magic link
 # opens in Safari, which lands the session in a different storage container
 # from the installed home-screen app, and the user looks permanently signed out.

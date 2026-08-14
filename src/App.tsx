@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/hooks/useAuth'
 import { PreferencesProvider } from '@/hooks/usePreferences'
+import { useAuthLinkLanding } from '@/hooks/useAuthLinkLanding'
 import { ToastProvider } from '@/components/Toast'
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/ProtectedRoute'
 import { InstallHint } from '@/components/InstallHint'
@@ -20,6 +21,11 @@ import SiriSettings from '@/routes/SiriSettings'
 import Account from '@/routes/Account'
 import NotFound from '@/routes/NotFound'
 
+function AuthLinkLanding() {
+  useAuthLinkLanding()
+  return null
+}
+
 export default function App() {
   return (
     // PreferencesProvider is nested inside AuthProvider on purpose: preferences
@@ -34,6 +40,7 @@ export default function App() {
             Skip to content
           </a>
 
+          <AuthLinkLanding />
           <OfflineBanner />
 
           <Routes>
