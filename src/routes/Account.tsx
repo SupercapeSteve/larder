@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Check, Download, KeyRound, LogOut, Mail, Pencil, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, Bell, Check, Download, KeyRound, LogOut, Mail, Pencil, Trash2, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { AppShell } from '@/components/AppShell'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ErrorBanner, Spinner, SuccessBanner, TextField } from '@/components/ui'
@@ -147,6 +148,7 @@ export default function Account() {
           </button>
         </div>
 
+        <NotificationsSection />
         <PrivacySection />
 
         <p className="px-1 text-center text-xs text-larder-500">
@@ -168,6 +170,64 @@ export default function Account() {
         }}
       />
     </AppShell>
+  )
+}
+
+/* ── Notifications ────────────────────────────────────────────────────────── */
+
+function NotificationsSection() {
+  const { state, subscribe, unsubscribe } = usePushNotifications()
+  const { showToast } = useToast()
+
+  const copy: Record<typeof state, string> = {
+    working: 'Checking…',
+    unsupported: 'This browser does not support notifications.',
+    'needs-install': 'Add Larder to your home screen first — iOS only delivers notifications to installed apps, never to a Safari tab.',
+    denied: 'Blocked. Turn notifications back on for Larder in your device settings.',
+    unsubscribed: 'Get a nudge when somebody else adds to the list.',
+    subscribed: "You'll be notified when the list changes.",
+  }
+
+  const actionable = state === 'unsubscribed' || state === 'subscribed'
+
+  return (
+    <SettingsSection title="Notifications">
+      <div className="flex items-center gap-3 px-4 py-3">
+        <Bell className="h-5 w-5 shrink-0 text-larder-500" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium text-larder-950 dark:text-larder-50">
+            Push notifications
+          </span>
+          <span className="mt-0.5 block text-xs text-larder-600 dark:text-larder-400">
+            {copy[state]}
+          </span>
+        </span>
+
+        {actionable ? (
+          <button
+            type="button"
+            onClick={async () => {
+              if (state === 'subscribed') {
+                await unsubscribe()
+                showToast({ message: 'Notifications turned off.' })
+                return
+              }
+              const problem = await subscribe()
+              showToast(
+                problem
+                  ? { message: problem, tone: 'error' }
+                  : { message: 'Notifications on.' },
+              )
+            }}
+            className="btn-secondary shrink-0 text-sm"
+          >
+            {state === 'subscribed' ? 'Turn off' : 'Turn on'}
+          </button>
+        ) : state === 'working' ? (
+          <Spinner />
+        ) : null}
+      </div>
+    </SettingsSection>
   )
 }
 
