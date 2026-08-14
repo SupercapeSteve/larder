@@ -34,7 +34,12 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        // Deliberately excludes public/icons/**: ten accent sets is ~50 icons
+        // and pushed the precache past 950 KB, most of it colours nobody chose.
+        // The active accent's icons are fetched on demand and cached at
+        // runtime below, so an install costs one set rather than all ten.
+        globPatterns: ['**/*.{js,css,html,ico,woff2}', 'pwa-*.png', 'apple-touch-icon.png', 'favicon*'],
+        globIgnores: ['**/icons/**'],
         // Deep links must fall back to the app shell, or a hard refresh on
         // /h/<id> is a 404 from the service worker as well as from the host.
         navigateFallback: '/index.html',
@@ -50,6 +55,15 @@ export default defineConfig({
             urlPattern: ({ sameOrigin, url }) => sameOrigin && url.pathname.startsWith('/assets/'),
             handler: 'StaleWhileRevalidate',
             options: { cacheName: 'larder-assets' },
+          },
+          {
+            // Only the accent actually in use ends up cached.
+            urlPattern: ({ sameOrigin, url }) => sameOrigin && url.pathname.startsWith('/icons/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'larder-accent-icons',
+              expiration: { maxEntries: 12, maxAgeSeconds: 60 * 60 * 24 * 90 },
+            },
           },
         ],
       },

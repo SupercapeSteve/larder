@@ -6,7 +6,29 @@ import { useUser } from '@/hooks/useAuth'
 import { categorise, type CategoryRule } from '@/lib/categories'
 import { parseItemInput } from '@/lib/parseItem'
 import { beginLocalWrite, endLocalWrite, newId } from '@/lib/itemSync'
+import { useOutbox } from '@/hooks/useOutbox'
 import type { Item } from '@/types/database'
+
+/**
+ * Was this a connectivity failure rather than a refusal?
+ *
+ * A rejected write (permission, constraint) must still roll back and tell the
+ * user. A write that never reached the server should be queued instead — that
+ * is the difference between "the server said no" and "you are in a chest
+ * freezer aisle with no signal".
+ */
+function isConnectivityError(error: unknown): boolean {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true
+  const message = (
+    error instanceof Error ? error.message : String((error as { message?: string })?.message ?? '')
+  ).toLowerCase()
+  return (
+    message.includes('failed to fetch') ||
+    message.includes('networkerror') ||
+    message.includes('network request failed') ||
+    message.includes('load failed')
+  )
+}
 
 const ITEM_COLUMNS =
   'id, list_id, name, quantity, category, note, checked, added_by, checked_by, checked_at, source, sort_order, created_at, updated_at'
@@ -61,6 +83,31 @@ function nextSortOrder(client: QueryClient, listId: string): number {
 
 /* ── Mutations. Every one of these is optimistic. ─────────────────────────── */
 
+/** The row as it will exist once a queued insert reaches the server. */
+function optimisticItem(
+  draft: NewItemDraft & { id: string; sort_order: number },
+  listId: string,
+  userId: string | null,
+): Item {
+  const now = new Date().toISOString()
+  return {
+    id: draft.id,
+    list_id: listId,
+    name: draft.name,
+    quantity: draft.quantity ?? null,
+    category: draft.category ?? null,
+    note: draft.note ?? null,
+    checked: false,
+    added_by: userId,
+    checked_by: null,
+    checked_at: null,
+    source: 'app',
+    sort_order: draft.sort_order,
+    created_at: now,
+    updated_at: now,
+  }
+}
+
 export type NewItemDraft = {
   name: string
   quantity?: string | null
@@ -71,24 +118,36 @@ export type NewItemDraft = {
 export function useAddItem(listId: string) {
   const client = useQueryClient()
   const user = useUser()
+  const { queue } = useOutbox()
 
   return useMutation({
     mutationFn: async (draft: NewItemDraft & { id: string; sort_order: number }): Promise<Item> => {
-      const { data, error } = await supabase
-        .from('items')
-        .insert({
-          id: draft.id,
-          list_id: listId,
-          name: draft.name,
-          quantity: draft.quantity ?? null,
-          category: draft.category ?? null,
-          note: draft.note ?? null,
-          source: 'app',
-          sort_order: draft.sort_order,
-        })
-        .select(ITEM_COLUMNS)
-        .single()
-      if (error) throw new Error(rpcErrorMessage(error))
+      const row = {
+        id: draft.id,
+        list_id: listId,
+        name: draft.name,
+        quantity: draft.quantity ?? null,
+        category: draft.category ?? null,
+        note: draft.note ?? null,
+        source: 'app',
+        sort_order: draft.sort_order,
+      }
+
+      // The id is generated on the client, so a queued insert is idempotent:
+      // replaying one that already landed is a duplicate-key no-op.
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        await queue({ kind: 'insert', table: 'items', payload: row })
+        return optimisticItem(draft, listId, user?.id ?? null)
+      }
+
+      const { data, error } = await supabase.from('items').insert(row).select(ITEM_COLUMNS).single()
+      if (error) {
+        if (isConnectivityError(error)) {
+          await queue({ kind: 'insert', table: 'items', payload: row })
+          return optimisticItem(draft, listId, user?.id ?? null)
+        }
+        throw new Error(rpcErrorMessage(error))
+      }
       return data
     },
     onMutate: async (draft) => {
@@ -154,16 +213,36 @@ export function draftFromInput(
 export function useToggleItem(listId: string) {
   const client = useQueryClient()
   const user = useUser()
+  const { queue } = useOutbox()
 
   return useMutation({
     mutationFn: async ({ item, checked }: { item: Item; checked: boolean }): Promise<Item> => {
+      const locally = (): Item => ({
+        ...item,
+        checked,
+        checked_at: checked ? new Date().toISOString() : null,
+        checked_by: checked ? (user?.id ?? null) : null,
+        updated_at: new Date().toISOString(),
+      })
+
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        await queue({ kind: 'update', table: 'items', id: item.id, payload: { checked } })
+        return locally()
+      }
+
       const { data, error } = await supabase
         .from('items')
         .update({ checked })
         .eq('id', item.id)
         .select(ITEM_COLUMNS)
         .single()
-      if (error) throw new Error(rpcErrorMessage(error))
+      if (error) {
+        if (isConnectivityError(error)) {
+          await queue({ kind: 'update', table: 'items', id: item.id, payload: { checked } })
+          return locally()
+        }
+        throw new Error(rpcErrorMessage(error))
+      }
       return data
     },
     onMutate: async ({ item, checked }) => {
@@ -231,11 +310,22 @@ export function useUpdateItem(listId: string) {
 
 export function useDeleteItem(listId: string) {
   const client = useQueryClient()
+  const { queue } = useOutbox()
 
   return useMutation({
     mutationFn: async (item: Item): Promise<void> => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        await queue({ kind: 'delete', table: 'items', id: item.id })
+        return
+      }
       const { error } = await supabase.from('items').delete().eq('id', item.id)
-      if (error) throw new Error(rpcErrorMessage(error))
+      if (error) {
+        if (isConnectivityError(error)) {
+          await queue({ kind: 'delete', table: 'items', id: item.id })
+          return
+        }
+        throw new Error(rpcErrorMessage(error))
+      }
     },
     onMutate: async (item) => {
       beginLocalWrite(item.id)

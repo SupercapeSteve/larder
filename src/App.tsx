@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/hooks/useAuth'
 import { PreferencesProvider } from '@/hooks/usePreferences'
+import { OutboxProvider } from '@/hooks/useOutbox'
 import { useAuthLinkLanding } from '@/hooks/useAuthLinkLanding'
 import { ToastProvider } from '@/components/Toast'
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/ProtectedRoute'
@@ -32,6 +33,7 @@ export default function App() {
     // are stored against the account, so it has to know who is signed in.
     <AuthProvider>
       <PreferencesProvider>
+        <OutboxProvider>
         <ToastProvider>
           <a
             href="#main"
@@ -71,6 +73,7 @@ export default function App() {
 
           <InstallHint />
         </ToastProvider>
+        </OutboxProvider>
       </PreferencesProvider>
     </AuthProvider>
   )

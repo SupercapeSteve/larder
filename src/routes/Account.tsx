@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Check, KeyRound, LogOut, Mail, Pencil, Users } from 'lucide-react'
+import { ArrowLeft, Check, Download, KeyRound, LogOut, Mail, Pencil, Trash2, Users } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import { AppShell } from '@/components/AppShell'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ErrorBanner, Spinner, SuccessBanner, TextField } from '@/components/ui'
@@ -146,6 +147,8 @@ export default function Account() {
           </button>
         </div>
 
+        <PrivacySection />
+
         <p className="px-1 text-center text-xs text-larder-500">
           Larder v1.1.0 · signed in as {profile?.display_name ?? user?.email ?? 'you'}
         </p>
@@ -165,6 +168,97 @@ export default function Account() {
         }}
       />
     </AppShell>
+  )
+}
+
+/* ── Your data ────────────────────────────────────────────────────────────── */
+
+function PrivacySection() {
+  const navigate = useNavigate()
+  const { showToast } = useToast()
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  async function exportData() {
+    setBusy(true)
+    const { data, error } = await supabase.rpc('export_my_data')
+    setBusy(false)
+
+    if (error || !data) {
+      showToast({ message: 'Could not build your export. Try again.', tone: 'error' })
+      return
+    }
+
+    // Built and downloaded entirely in the browser — the export never touches
+    // a third party, and nothing is stored anywhere to leak later.
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `larder-export-${new Date().toISOString().slice(0, 10)}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    showToast({ message: 'Export downloaded.' })
+  }
+
+  return (
+    <SettingsSection
+      title="Your data"
+      description="Everything Larder holds about you, and how to remove it."
+    >
+      <button
+        type="button"
+        onClick={exportData}
+        disabled={busy}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-larder-100 dark:hover:bg-larder-800"
+      >
+        {busy ? <Spinner /> : <Download className="h-5 w-5 shrink-0 text-larder-500" aria-hidden />}
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium text-larder-950 dark:text-larder-50">
+            Download my data
+          </span>
+          <span className="text-xs text-larder-600 dark:text-larder-400">
+            Profile, households, items and history as JSON
+          </span>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setConfirmDelete(true)}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+      >
+        <Trash2 className="h-5 w-5 shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">Delete my account</span>
+          <span className="text-xs opacity-80">Permanent. Cannot be undone.</span>
+        </span>
+      </button>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete your account?"
+        body="Your profile, avatar and Siri tokens are removed, and you leave every household. A household with nobody left in it is deleted with its list. This cannot be undone."
+        confirmLabel="Delete for ever"
+        tone="danger"
+        busy={busy}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={async () => {
+          setConfirmDelete(false)
+          setBusy(true)
+          const { error } = await supabase.rpc('delete_my_account')
+          setBusy(false)
+          if (error) {
+            showToast({ message: 'Could not delete your account. Try again.', tone: 'error' })
+            return
+          }
+          await signOut()
+          navigate('/signin', { replace: true })
+        }}
+      />
+    </SettingsSection>
   )
 }
 

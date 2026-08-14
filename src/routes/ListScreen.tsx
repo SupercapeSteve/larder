@@ -1,6 +1,8 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ChevronDown, Eye, Settings, ShoppingBasket, Trash2, UserCircle2 } from 'lucide-react'
+import { ChevronDown, Eye, History, Search, Settings, ShoppingBasket, Trash2, UserCircle2 } from 'lucide-react'
+import { StaplesSheet } from '@/components/StaplesSheet'
+import { useForgetStaple, usePurchaseHistory } from '@/hooks/usePurchaseHistory'
 import { AppShell } from '@/components/AppShell'
 import { AddItemBar } from '@/components/AddItemBar'
 import { ItemRow } from '@/components/ItemRow'
@@ -52,6 +54,8 @@ export default function ListScreen() {
   useRealtimeProfiles(householdId)
   const rules = useCategoryRules(householdId).data ?? []
   const saveRule = useSaveCategoryRule(householdId ?? '')
+  const staples = usePurchaseHistory(householdId).data ?? []
+  const forgetStaple = useForgetStaple(householdId ?? '')
 
   const listId = list?.id ?? ''
   const addItem = useAddItem(listId)
@@ -61,6 +65,8 @@ export default function ListScreen() {
   const restoreItems = useRestoreItems(listId)
   const clearChecked = useClearChecked(listId)
 
+  const [query, setQuery] = useState('')
+  const [showStaples, setShowStaples] = useState(false)
   const [editing, setEditing] = useState<Item | null>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [showChecked, setShowChecked] = useState(true)
@@ -89,7 +95,26 @@ export default function ListScreen() {
     return (userId: string | null) => (userId ? (byId.get(userId) ?? null) : null)
   }, [membersQuery.data])
 
-  const items = itemsQuery.data ?? []
+  const allItems = itemsQuery.data ?? []
+
+  // Search narrows what is rendered but never what is counted or cleared —
+  // acting on a filtered view would let somebody clear items they cannot see.
+  const items = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (q.length === 0) return allItems
+    return allItems.filter(
+      (i) =>
+        i.name.toLowerCase().includes(q) ||
+        (i.note ?? '').toLowerCase().includes(q) ||
+        (i.category ?? '').toLowerCase().includes(q),
+    )
+  }, [allItems, query])
+
+  const onListNames = useMemo(
+    () => new Set(allItems.map((i) => i.name.trim().toLowerCase())),
+    [allItems],
+  )
+
   const { groups, checkedItems, flat } = useMemo(
     () => arrangeItems(items, preferences.groupByCategory, preferences.autoCollapseChecked),
     [items, preferences.groupByCategory, preferences.autoCollapseChecked],
@@ -105,10 +130,44 @@ export default function ListScreen() {
     })
   }
 
+  function addDraft(raw: string) {
+    if (!listId) return
+    const draft = draftFromInput(queryClient, listId, raw, rules)
+    if (!draft) return
+    addItem.mutate(draft, {
+      onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
+    })
+  }
+
   function onAdd(raw: string) {
     if (!listId) return
     const draft = draftFromInput(queryClient, listId, raw, rules)
     if (!draft) return
+
+    // Adding something already on the list is nearly always a mistake — two
+    // people shopping from the same list, or you forgetting you added it.
+    // Offer to bump it rather than silently creating a duplicate.
+    const existing = items.find(
+      (i) => i.name.trim().toLowerCase() === draft.name.trim().toLowerCase(),
+    )
+    if (existing) {
+      showToast({
+        message: existing.checked
+          ? `${existing.name} is already ticked off.`
+          : `${existing.name} is already on the list.`,
+        action: {
+          label: 'Add anyway',
+          onAct: () =>
+            addItem.mutate(draft, {
+              onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
+            }),
+        },
+      })
+      // Un-tick it so it is visibly wanted again.
+      if (existing.checked) onToggle(existing)
+      return
+    }
+
     addItem.mutate(draft, {
       onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
     })
@@ -201,12 +260,41 @@ export default function ListScreen() {
     </div>
   )
 
+  const toolbar =
+    allItems.length > 4 || query.length > 0 ? (
+      <div className="relative pb-2">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-larder-400"
+          aria-hidden
+        />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search the list…"
+          aria-label="Search the list"
+          className="field py-2 pl-9"
+        />
+      </div>
+    ) : null
+
   // A viewer's writes are refused by RLS, so offering the controls would only
   // produce error toasts. Say why instead.
   const canEdit = household ? can(household.role, 'addItems') : true
 
   const footer = canEdit ? (
-    <AddItemBar onAdd={onAdd} disabled={!listId} />
+    <div>
+      <button
+        type="button"
+        onClick={() => setShowStaples(true)}
+        className="tap w-full justify-start gap-2 rounded-xl px-1 pt-2 text-xs font-medium text-larder-600 dark:text-larder-400"
+      >
+        <History className="h-3.5 w-3.5" aria-hidden />
+        Buy again
+        {staples.length > 0 ? <span className="text-larder-400">· {staples.length}</span> : null}
+      </button>
+      <AddItemBar onAdd={onAdd} disabled={!listId} />
+    </div>
   ) : (
     <p className="flex items-center justify-center gap-2 py-3 text-xs text-larder-600 dark:text-larder-400">
       <Eye className="h-3.5 w-3.5" aria-hidden />
@@ -262,7 +350,13 @@ export default function ListScreen() {
           : `${outstanding} ${outstanding === 1 ? 'item' : 'items'} still to get.`}
       </p>
 
-      {items.length === 0 ? (
+      {toolbar}
+
+      {allItems.length > 0 && items.length === 0 ? (
+        <p className="py-12 text-center text-sm text-larder-600 dark:text-larder-400">
+          Nothing matches “{query}”.
+        </p>
+      ) : items.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="space-y-4 py-4 pb-8">
@@ -378,6 +472,20 @@ export default function ListScreen() {
           ) : null}
         </div>
       )}
+
+      <StaplesSheet
+        open={showStaples}
+        staples={staples}
+        onList={onListNames}
+        busy={addItem.isPending}
+        onClose={() => setShowStaples(false)}
+        onAdd={(staple) => addDraft(staple.name)}
+        onForget={(nameKey) =>
+          forgetStaple.mutate(nameKey, {
+            onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
+          })
+        }
+      />
 
       <ItemEditSheet
         item={editing}

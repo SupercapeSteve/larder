@@ -188,6 +188,63 @@ export type Database = {
           },
         ]
       }
+      purchase_history: {
+        Row: {
+          household_id: string
+          name_key: string
+          name: string
+          category: string | null
+          quantity: string | null
+          times_bought: number
+          last_bought_at: string
+        }
+        Insert: {
+          household_id: string
+          name_key: string
+          name: string
+          category?: string | null
+          quantity?: string | null
+          times_bought?: number
+          last_bought_at?: string
+        }
+        Update: {
+          household_id?: string
+          name_key?: string
+          name?: string
+          category?: string | null
+          quantity?: string | null
+          times_bought?: number
+          last_bought_at?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          id: string
+          user_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          endpoint?: string
+          p256dh?: string
+          auth?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       category_rules: {
         Row: {
           household_id: string
@@ -308,6 +365,14 @@ export type Database = {
       }
       leave_household: {
         Args: { hid: string }
+        Returns: undefined
+      }
+      export_my_data: {
+        Args: Record<string, never>
+        Returns: Json
+      }
+      delete_my_account: {
+        Args: Record<string, never>
         Returns: undefined
       }
       regenerate_join_code: {

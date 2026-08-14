@@ -1,18 +1,19 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, ClipboardCopy } from 'lucide-react'
+import { copyDiagnostics } from '@/lib/diagnostics'
 
 type Props = { children: ReactNode }
-type State = { error: Error | null }
+type State = { error: Error | null; copied: boolean }
 
 /**
  * Last line of defence. A render crash inside the PWA is otherwise a white
  * screen with no way out — no address bar, no reload button, nothing.
  */
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { error: null }
+  state: State = { error: null, copied: false }
 
   static getDerivedStateFromError(error: Error): State {
-    return { error }
+    return { error, copied: false }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
@@ -50,6 +51,20 @@ export class ErrorBoundary extends Component<Props, State> {
             Back to the list
           </button>
         </div>
+
+        <button
+          type="button"
+          className="btn-ghost mt-3 gap-2 text-sm"
+          onClick={() => {
+            void copyDiagnostics(error).then((ok) => {
+              this.setState({ copied: ok })
+              setTimeout(() => this.setState({ copied: false }), 2500)
+            })
+          }}
+        >
+          <ClipboardCopy className="h-4 w-4" aria-hidden />
+          {this.state.copied ? 'Copied' : 'Copy diagnostics'}
+        </button>
 
         <details className="mt-6 max-w-md text-left">
           <summary className="cursor-pointer text-xs text-larder-500">Technical detail</summary>
