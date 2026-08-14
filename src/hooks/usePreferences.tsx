@@ -1,5 +1,16 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { readLocal, writeLocal } from '@/lib/storage'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
+import { readLocal, removeLocal, writeLocal } from '@/lib/storage'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/hooks/useAuth'
 import { applyAccent, accentHex, toAccent, type Accent } from '@/lib/themes'
 
 export type ThemeChoice = 'system' | 'light' | 'dark'
@@ -43,33 +54,38 @@ function isTextSize(value: unknown): value is TextSize {
   return value === 'normal' || value === 'large' || value === 'x-large'
 }
 
-function readPreferences(): Preferences {
-  const raw = readLocal(STORAGE_KEY)
-  if (!raw) return DEFAULTS
-
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null) return DEFAULTS
-    const p = parsed as Record<string, unknown>
-
-    return {
-      accent: toAccent(p.accent),
-      theme: isThemeChoice(p.theme) ? p.theme : DEFAULTS.theme,
-      textSize: isTextSize(p.textSize) ? p.textSize : DEFAULTS.textSize,
-      groupByCategory:
-        typeof p.groupByCategory === 'boolean' ? p.groupByCategory : DEFAULTS.groupByCategory,
-      showAttribution:
-        typeof p.showAttribution === 'boolean' ? p.showAttribution : DEFAULTS.showAttribution,
-      showEmoji: typeof p.showEmoji === 'boolean' ? p.showEmoji : DEFAULTS.showEmoji,
-      autoCollapseChecked:
-        typeof p.autoCollapseChecked === 'boolean'
-          ? p.autoCollapseChecked
-          : DEFAULTS.autoCollapseChecked,
-      haptics: typeof p.haptics === 'boolean' ? p.haptics : DEFAULTS.haptics,
+/** Narrow anything — a localStorage string or a jsonb column — into Preferences. */
+function parsePreferences(raw: unknown): Preferences | null {
+  let parsed: unknown = raw
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      return null
     }
-  } catch {
-    return DEFAULTS
   }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null
+  const p = parsed as Record<string, unknown>
+
+  return {
+    accent: toAccent(p.accent),
+    theme: isThemeChoice(p.theme) ? p.theme : DEFAULTS.theme,
+    textSize: isTextSize(p.textSize) ? p.textSize : DEFAULTS.textSize,
+    groupByCategory:
+      typeof p.groupByCategory === 'boolean' ? p.groupByCategory : DEFAULTS.groupByCategory,
+    showAttribution:
+      typeof p.showAttribution === 'boolean' ? p.showAttribution : DEFAULTS.showAttribution,
+    showEmoji: typeof p.showEmoji === 'boolean' ? p.showEmoji : DEFAULTS.showEmoji,
+    autoCollapseChecked:
+      typeof p.autoCollapseChecked === 'boolean'
+        ? p.autoCollapseChecked
+        : DEFAULTS.autoCollapseChecked,
+    haptics: typeof p.haptics === 'boolean' ? p.haptics : DEFAULTS.haptics,
+  }
+}
+
+function readLocalPreferences(): Preferences {
+  return parsePreferences(readLocal(STORAGE_KEY)) ?? DEFAULTS
 }
 
 type PreferencesContextValue = {
@@ -117,9 +133,31 @@ function applyToDocument(preferences: Preferences): void {
   }
 }
 
+/**
+ * Appearance settings, stored against the account.
+ *
+ * localStorage is still written on every change — it is what the pre-paint
+ * script in index.html reads, so the right theme is on screen before React
+ * mounts, and it keeps the app themed while offline. The account copy in
+ * `profiles.preferences` is the source of truth: signing in on a new device
+ * pulls it down, and signing out clears the device so the next person starts
+ * from defaults rather than inheriting somebody else's purple.
+ *
+ * Must be nested *inside* AuthProvider — it needs to know who is signed in.
+ */
 export function PreferencesProvider({ children }: { children: ReactNode }) {
-  const [preferences, setPreferences] = useState<Preferences>(readPreferences)
+  const { user } = useAuth()
+  const [preferences, setPreferences] = useState<Preferences>(readLocalPreferences)
 
+  // Read inside async callbacks without making them depend on every change.
+  const latest = useRef(preferences)
+  latest.current = preferences
+
+  // Tracks whose preferences are currently loaded, so a change of account can
+  // be told apart from a re-render.
+  const loadedFor = useRef<string | null>(null)
+
+  // Paint and persist locally on every change, signed in or not.
   useEffect(() => {
     applyToDocument(preferences)
     writeLocal(STORAGE_KEY, JSON.stringify(preferences))
@@ -134,14 +172,74 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     return () => media.removeEventListener('change', onChange)
   }, [preferences])
 
+  // Sign in → adopt the account's settings. Sign out / switch → start clean.
+  useEffect(() => {
+    const id = user?.id ?? null
+    if (id === loadedFor.current) return
+
+    const previous = loadedFor.current
+    loadedFor.current = id
+
+    if (previous !== null) {
+      // Signed out, or signed in as somebody else. Either way this device must
+      // not keep the last account's look.
+      setPreferences(DEFAULTS)
+      removeLocal(STORAGE_KEY)
+    }
+
+    if (!id) return
+
+    let active = true
+    void supabase
+      .from('profiles')
+      .select('preferences')
+      .eq('id', id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!active || error) return
+
+        const remote = parsePreferences(data?.preferences)
+        if (remote) {
+          setPreferences(remote)
+          return
+        }
+
+        // No saved settings yet — this is the first sign-in since the feature
+        // landed. Keep whatever is already on this device and adopt it as the
+        // account's, rather than resetting somebody's existing choices.
+        void supabase.from('profiles').update({ preferences: latest.current }).eq('id', id)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [user])
+
+  /** Persist a user-initiated change to the account. */
+  const save = useCallback((next: Preferences) => {
+    const id = loadedFor.current
+    if (!id) return
+    // Fire and forget: the change is already applied locally, and a failed
+    // write should not block the UI or throw an error at somebody for
+    // picking a colour. It will be re-sent on the next change.
+    void supabase.from('profiles').update({ preferences: next }).eq('id', id)
+  }, [])
+
   const setPreference = useCallback(
     <K extends keyof Preferences>(key: K, value: Preferences[K]) => {
-      setPreferences((current) => ({ ...current, [key]: value }))
+      setPreferences((current) => {
+        const next = { ...current, [key]: value }
+        save(next)
+        return next
+      })
     },
-    [],
+    [save],
   )
 
-  const resetPreferences = useCallback(() => setPreferences(DEFAULTS), [])
+  const resetPreferences = useCallback(() => {
+    setPreferences(DEFAULTS)
+    save(DEFAULTS)
+  }, [save])
 
   const value = useMemo(
     () => ({ preferences, setPreference, resetPreferences }),

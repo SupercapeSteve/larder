@@ -22,8 +22,10 @@ import NotFound from '@/routes/NotFound'
 
 export default function App() {
   return (
-    <PreferencesProvider>
-      <AuthProvider>
+    // PreferencesProvider is nested inside AuthProvider on purpose: preferences
+    // are stored against the account, so it has to know who is signed in.
+    <AuthProvider>
+      <PreferencesProvider>
         <ToastProvider>
           <a
             href="#main"
@@ -62,7 +64,7 @@ export default function App() {
 
           <InstallHint />
         </ToastProvider>
-      </AuthProvider>
-    </PreferencesProvider>
+      </PreferencesProvider>
+    </AuthProvider>
   )
 }

@@ -21,6 +21,7 @@ export type Database = {
           avatar_emoji: string | null
           avatar_color: string | null
           avatar_url: string | null
+          preferences: Json | null
           created_at: string
         }
         Insert: {
@@ -29,6 +30,7 @@ export type Database = {
           avatar_emoji?: string | null
           avatar_color?: string | null
           avatar_url?: string | null
+          preferences?: Json | null
           created_at?: string
         }
         Update: {
@@ -37,6 +39,7 @@ export type Database = {
           avatar_emoji?: string | null
           avatar_color?: string | null
           avatar_url?: string | null
+          preferences?: Json | null
           created_at?: string
         }
         Relationships: []
