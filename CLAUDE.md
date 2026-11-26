@@ -66,13 +66,16 @@ Hey Claude — **Carbon** (Gemini 4 Carbon) stepped in while your quota was rese
 - **Automatic live client updates (`src/lib/appUpdater.ts`, `vite.config.ts`, `vercel.json`, `src/sw.ts`, `src/main.tsx`)**:
   - Every production build stamps `__APP_BUILD_ID__` and emits an uncached `/version.json` (`Cache-Control: no-cache, no-store, must-revalidate`, excluded from Workbox precache).
   - Clients register `/sw.js` with `updateViaCache: 'none'`, poll `/version.json` + `registration.update()` on startup, `visibilitychange`, `focus`, `online`, `pageshow`, and every 60s while visible, handle `vite:preloadError`, and auto-reload onto new deploys (deferring only while a focused field actually contains unsaved typed text, then reloading immediately on submit/clear/blur).
+- **Header profile avatar/name & Patch notes (`src/routes/ListScreen.tsx`, `src/index.css`, `src/lib/changelog.ts`, `src/components/WhatsNewModal.tsx`, `src/routes/PatchNotes.tsx`, `src/routes/Account.tsx`)**:
+  - Replaced the generic `UserCircle2` icon in `ListScreen`'s header with the user's chosen `<Avatar />` (photo, emoji, or palette colour), plus their `display_name` gated by `.desktop-profile-name` (`@media (min-width: 768px) and (min-height: 520px)` so phones in both portrait and landscape show only the avatar while computers show avatar + name).
+  - Added `WhatsNewModal` (one-time per version, dismissible via backdrop click, `Escape`, `×`, or *Got it*) and `/patch-notes` linked from Settings (`Account.tsx`).
   - Many-to-many join table ensures two dishes in the same week can share an ingredient (e.g. garlic) while remaining a single row on the main list, and deleting a sub-list cascades only `sublist_items` so items stay safely on the main list.
   - Enforced cross-list integrity via `enforce_sublist_item_integrity()`, `FORBID_SUBLIST_REPARENT`, `FORCE ROW LEVEL SECURITY`, `REPLICA IDENTITY FULL`, `supabase_realtime` publication, `export_my_data()` coverage, migration self-tests, and expanded `supabase/tests/rls.sql` (now asserting all 12 public tables).
 - **Client (`src/lib/sublists.ts`, `src/hooks/useSublists.ts`, `src/hooks/useRealtimeItems.ts`, `src/components/SublistSheet.tsx`, `src/components/ItemEditSheet.tsx`, `src/components/ItemRow.tsx`, `src/routes/ListScreen.tsx`)**:
   - Auto-suggests dish emojis from names (`"Taco night"` → `🌮`, `"Carbonara"` → `🍝`, etc.), supports batch comma/line-separated recipe entry, linking existing main-list items, `"Shop again"` (1-tap uncheck for recurring meals), sub-list badges on main-list rows, Undo restoration of sub-list links on item delete/clear, and graceful `localStorage` fallback if the frontend runs before `supabase db push`.
 
-### 4. Deployment Notes for Next Push
+### 4. Live Deployment Status (2026-11-26)
 
-1. `supabase db push` (applies `20261126000000_sublists_and_fixes.sql`).
-2. Run `supabase/tests/rls.sql` to verify `ALL RLS ASSERTIONS PASSED` across all 12 tables.
-3. `supabase functions deploy siri --no-verify-jwt` and `supabase functions deploy notify --no-verify-jwt`.
+- **Database**: Both `20261126000000_sublists_and_fixes.sql` and `20261126010000_fix_sublist_items_upsert_grant.sql` are applied on linked production Supabase (`hysfurwkmedolzzeabdv`), and `supabase/tests/rls.sql` verified `ALL RLS ASSERTIONS PASSED` across all 12 tables.
+- **Edge Functions**: `siri` and `notify` are deployed live (`--no-verify-jwt`, authenticated internally).
+- **Frontend**: Shipped through `v1.2.1` on `origin/main` (Vercel auto-deploy + `/version.json` live client auto-refresh).

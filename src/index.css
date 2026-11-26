@@ -217,6 +217,17 @@
     @apply rounded-2xl border border-larder-200 bg-white shadow-sm dark:border-larder-800 dark:bg-larder-900;
   }
 
+  /* Shown only on desktop/computer viewports that have room — never on iPhones
+     or other phones, even when rotated sideways into landscape. */
+  .desktop-profile-name {
+    display: none;
+  }
+  @media (min-width: 1024px), (min-width: 768px) and (min-height: 520px) {
+    .desktop-profile-name {
+      display: inline;
+    }
+  }
+
   .skeleton {
     @apply rounded-lg bg-larder-200/70 dark:bg-larder-800/70;
     background-image: linear-gradient(

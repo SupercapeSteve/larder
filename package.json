@@ -1,7 +1,7 @@
 {
   "name": "larder",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.2.1",
   "type": "module",
   "description": "Realtime household grocery list — installable PWA with Siri support",
   "scripts": {

@@ -11,12 +11,13 @@ import {
   Settings,
   ShoppingBasket,
   Trash2,
-  UserCircle2,
   UtensilsCrossed,
   X,
 } from 'lucide-react'
+import { Avatar } from '@/components/Avatar'
 import { StaplesSheet } from '@/components/StaplesSheet'
 import { SublistSheet, type SublistFormSubmit } from '@/components/SublistSheet'
+import { useAuth, useProfile } from '@/hooks/useAuth'
 import { useForgetStaple, usePurchaseHistory } from '@/hooks/usePurchaseHistory'
 import { AppShell } from '@/components/AppShell'
 import { AddItemBar } from '@/components/AddItemBar'
@@ -71,6 +72,8 @@ export default function ListScreen() {
   const queryClient = useQueryClient()
   const { showToast } = useToast()
   const { preferences } = usePreferences()
+  const { user } = useAuth()
+  const { data: myProfile } = useProfile()
 
   const householdsQuery = useHouseholds()
   const listQuery = useDefaultList(householdId)
@@ -560,6 +563,13 @@ export default function ListScreen() {
   const canCheck = household ? can(household.role, 'checkItems') : true
   const canEdit = household ? can(household.role, 'editItems') : true
 
+  const me = membersQuery.data?.find((m) => m.isYou)
+  const myDisplayName =
+    myProfile?.display_name ?? (me && me.displayName !== 'Someone' ? me.displayName : null)
+  const myEmoji = myProfile ? myProfile.avatar_emoji : (me?.avatarEmoji ?? null)
+  const myColor = myProfile ? myProfile.avatar_color : (me?.avatarColor ?? null)
+  const myAvatarUrl = myProfile ? myProfile.avatar_url : (me?.avatarUrl ?? null)
+
   const header = (
     <div className="shell-header-inner flex min-h-tap items-center gap-1.5 py-2.5 min-[380px]:gap-2 sm:py-3">
       <ShoppingBasket className="h-5 w-5 shrink-0 text-larder-600 min-[380px]:h-6 min-[380px]:w-6 dark:text-larder-400" aria-hidden />
@@ -578,10 +588,22 @@ export default function ListScreen() {
       </Link>
       <Link
         to="/account"
-        className="tap -mr-2 shrink-0 rounded-xl text-larder-600 dark:text-larder-400"
-        aria-label="Your settings"
+        className="tap -mr-1.5 shrink-0 gap-2 rounded-xl px-1.5 text-larder-900 hover:bg-larder-100 dark:text-larder-100 dark:hover:bg-larder-800/70"
+        aria-label={myDisplayName ? `Your settings (${myDisplayName})` : 'Your settings'}
       >
-        <UserCircle2 className="h-5 w-5" aria-hidden />
+        <Avatar
+          userId={user?.id ?? null}
+          displayName={myDisplayName}
+          emoji={myEmoji}
+          color={myColor}
+          imageUrl={myAvatarUrl}
+          size="sm"
+        />
+        {myDisplayName ? (
+          <span className="desktop-profile-name max-w-[9.5rem] truncate pr-1 text-sm font-medium">
+            {myDisplayName}
+          </span>
+        ) : null}
       </Link>
     </div>
   )

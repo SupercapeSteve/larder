@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Bell, Check, Download, KeyRound, LogOut, Mail, Pencil, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, Bell, Check, ChevronRight, Download, KeyRound, LogOut, Mail, Pencil, Sparkles, Trash2, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { CURRENT_VERSION, PATCH_NOTES } from '@/lib/changelog'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { AppShell } from '@/components/AppShell'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -127,6 +128,25 @@ export default function Account() {
           <NotificationsSection />
           <PrivacySection />
 
+          <Link
+            to="/patch-notes"
+            className="card flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-larder-100 dark:hover:bg-larder-800/70"
+          >
+            <Sparkles className="h-5 w-5 shrink-0 text-larder-600 dark:text-larder-400" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-2 text-sm font-medium text-larder-950 dark:text-larder-50">
+                <span>Patch notes</span>
+                <span className="rounded-full bg-larder-100 px-2 py-0.5 text-[11px] font-semibold text-larder-700 dark:bg-larder-800 dark:text-larder-300">
+                  v{CURRENT_VERSION}
+                </span>
+              </span>
+              <span className="mt-0.5 block truncate text-xs text-larder-600 dark:text-larder-400">
+                {PATCH_NOTES[0]?.title ?? 'See everything added to Larder'}
+              </span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-larder-400" aria-hidden />
+          </Link>
+
           <div className="space-y-2">
             <Link to="/households" className="btn-secondary w-full gap-2">
               <Users className="h-4 w-4" aria-hidden />
@@ -155,7 +175,10 @@ export default function Account() {
           </div>
 
           <p className="px-1 text-center text-xs text-larder-500">
-            Larder v1.2.0 · signed in as {profile?.display_name ?? user?.email ?? 'you'}
+            <Link to="/patch-notes" className="underline-offset-2 hover:underline">
+              Larder v{CURRENT_VERSION}
+            </Link>{' '}
+            · signed in as {profile?.display_name ?? user?.email ?? 'you'}
           </p>
         </div>
       </div>

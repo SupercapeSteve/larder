@@ -7,6 +7,7 @@ import { ToastProvider } from '@/components/Toast'
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/ProtectedRoute'
 import { InstallHint } from '@/components/InstallHint'
 import { OfflineBanner } from '@/components/OfflineBanner'
+import { WhatsNewModal } from '@/components/WhatsNewModal'
 import SignIn from '@/routes/SignIn'
 import SignUp from '@/routes/SignUp'
 import ForgotPassword from '@/routes/ForgotPassword'
@@ -20,6 +21,7 @@ import ListScreen from '@/routes/ListScreen'
 import Aisles from '@/routes/Aisles'
 import SiriSettings from '@/routes/SiriSettings'
 import Account from '@/routes/Account'
+import PatchNotes from '@/routes/PatchNotes'
 import NotFound from '@/routes/NotFound'
 
 function AuthLinkLanding() {
@@ -68,12 +70,14 @@ export default function App() {
                     <Route path="/h/:householdId/aisles" element={<Aisles />} />
                     <Route path="/h/:householdId/siri" element={<SiriSettings />} />
                     <Route path="/account" element={<Account />} />
+                    <Route path="/patch-notes" element={<PatchNotes />} />
                   </Route>
 
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </div>
 
+              <WhatsNewModal />
               <InstallHint />
             </div>
           </ToastProvider>
