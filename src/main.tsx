@@ -3,33 +3,10 @@ import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ConfigError } from '@/components/ConfigError'
 import { envError } from '@/lib/env'
+import { startAppUpdater } from '@/lib/appUpdater'
 import '@/index.css'
 
-// When a new service worker claims an already-open tab, reload once (as long as
-// the user isn't mid-typing in an input) so open tabs don't keep executing an
-// outdated precached bundle across deploys.
-if ('serviceWorker' in navigator) {
-  const hadController = Boolean(navigator.serviceWorker.controller)
-  let refreshing = false
-
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadController || refreshing) return
-    const active = document.activeElement
-    const typing =
-      active instanceof HTMLInputElement ||
-      active instanceof HTMLTextAreaElement ||
-      (active instanceof HTMLElement && active.isContentEditable)
-    if (typing) return
-    refreshing = true
-    window.location.reload()
-  })
-
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      void navigator.serviceWorker.getRegistration().then((reg) => reg?.update())
-    }
-  })
-}
+startAppUpdater()
 
 const container = document.getElementById('root')
 if (!container) throw new Error('Larder could not start: #root element is missing from index.html')

@@ -19,6 +19,11 @@ precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
 
 self.skipWaiting()
+self.addEventListener('message', (event) => {
+  if ((event.data as { type?: string } | null)?.type === 'SKIP_WAITING') {
+    void self.skipWaiting()
+  }
+})
 self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim())
 })
@@ -26,7 +31,7 @@ self.addEventListener('activate', (event) => {
 // Deep links fall back to the app shell, or a hard refresh on /h/<id> 404s.
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL('index.html'), {
-    denylist: [/^\/functions\//, /^\/rest\//, /^\/auth\//],
+    denylist: [/^\/functions\//, /^\/rest\//, /^\/auth\//, /^\/version\.json$/],
   }),
 )
 
