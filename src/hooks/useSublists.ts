@@ -4,7 +4,11 @@ import { qk } from '@/lib/queryClient'
 import { rpcErrorMessage } from '@/lib/authErrors'
 import { useUser } from '@/hooks/useAuth'
 import { beginLocalWrite, endLocalWrite, newId } from '@/lib/itemSync'
-import { isConnectivityError } from '@/hooks/useItems'
+import {
+  isConnectivityError,
+  upsertItemInCache,
+  type NewItemDraft,
+} from '@/hooks/useItems'
 import { useOutbox } from '@/hooks/useOutbox'
 import {
   isMissingTableError,
@@ -13,11 +17,13 @@ import {
   writeLocalSublistLinks,
   writeLocalSublists,
 } from '@/lib/sublists'
-import type { Sublist, SublistItem } from '@/types/database'
+import type { Item, Sublist, SublistItem } from '@/types/database'
 
 const SUBLIST_COLUMNS =
   'id, list_id, name, emoji, note, sort_order, created_by, created_at, updated_at'
 const SUBLIST_LINK_COLUMNS = 'sublist_id, item_id, list_id, created_at'
+const ITEM_COLUMNS =
+  'id, list_id, name, quantity, category, note, checked, added_by, checked_by, checked_at, source, sort_order, created_at, updated_at'
 
 export function linkKey(sublistId: string, itemId: string): string {
   return `link:${sublistId}:${itemId}`
@@ -136,17 +142,36 @@ export type NewSublistInput = {
   note?: string | null
 }
 
+export type CreateSublistVariables = {
+  draft: NewSublistInput & { id: string; sort_order: number }
+  /** Existing main-list item IDs to include right at creation. */
+  itemIds?: string[]
+  /** Brand-new ingredient items to create on the main list and link. */
+  newItems?: Array<NewItemDraft & { id: string; sort_order: number }>
+}
+
+/**
+ * Creates a sub-list AND attaches its initial items in one cohesive mutation:
+ *  - `onMutate` populates `sublists`, `items`, and `sublist_items` in cache at
+ *    0ms, so opening the new sub-list immediately shows every selected item
+ *    with no empty-state flash.
+ *  - `mutationFn` commits in strict FK order (`sublists` → `items` →
+ *    `sublist_items`) so `enforce_sublist_item_integrity` never races an
+ *    uncommitted row.
+ */
 export function useCreateSublist(listId: string) {
   const client = useQueryClient()
   const user = useUser()
   const { queue } = useOutbox()
 
   return useMutation({
-    mutationFn: async (
-      draft: NewSublistInput & { id: string; sort_order: number },
-    ): Promise<Sublist> => {
+    mutationFn: async ({
+      draft,
+      itemIds = [],
+      newItems = [],
+    }: CreateSublistVariables): Promise<{ sublist: Sublist; items: Item[]; links: SublistItem[] }> => {
       const now = new Date().toISOString()
-      const localRow: Sublist = {
+      const localSublist: Sublist = {
         id: draft.id,
         list_id: listId,
         name: draft.name,
@@ -158,7 +183,7 @@ export function useCreateSublist(listId: string) {
         updated_at: now,
       }
 
-      const insertRow = {
+      const sublistInsert = {
         id: draft.id,
         list_id: listId,
         name: draft.name,
@@ -167,36 +192,140 @@ export function useCreateSublist(listId: string) {
         sort_order: draft.sort_order,
       }
 
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        await queue({ kind: 'insert', table: 'sublists', payload: insertRow })
-        return localRow
+      const itemInserts = newItems.map((d) => ({
+        id: d.id,
+        list_id: listId,
+        name: d.name,
+        quantity: d.quantity ?? null,
+        category: d.category ?? null,
+        note: d.note ?? null,
+        source: 'app' as const,
+        sort_order: d.sort_order,
+      }))
+
+      const localItems: Item[] = newItems.map((d) => ({
+        id: d.id,
+        list_id: listId,
+        name: d.name,
+        quantity: d.quantity ?? null,
+        category: d.category ?? null,
+        note: d.note ?? null,
+        checked: false,
+        added_by: user?.id ?? null,
+        checked_by: null,
+        checked_at: null,
+        source: 'app',
+        sort_order: d.sort_order,
+        created_at: now,
+        updated_at: now,
+      }))
+
+      const allLinkIds = [...new Set([...itemIds, ...newItems.map((d) => d.id)])]
+      const linkInserts = allLinkIds.map((itemId) => ({
+        sublist_id: draft.id,
+        item_id: itemId,
+        list_id: listId,
+      }))
+      const localLinks: SublistItem[] = linkInserts.map((r) => ({ ...r, created_at: now }))
+
+      const queueAllOffline = async () => {
+        await queue({ kind: 'insert', table: 'sublists', payload: sublistInsert })
+        for (const itemRow of itemInserts) {
+          await queue({ kind: 'insert', table: 'items', payload: itemRow })
+        }
+        for (const linkRow of linkInserts) {
+          await queue({ kind: 'insert', table: 'sublist_items', payload: linkRow })
+        }
       }
 
-      const { data, error } = await supabase
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        await queueAllOffline()
+        return { sublist: localSublist, items: localItems, links: localLinks }
+      }
+
+      // 1. Sub-list row first.
+      const { data: createdSub, error: subError } = await supabase
         .from('sublists')
-        .insert(insertRow)
+        .insert(sublistInsert)
         .select(SUBLIST_COLUMNS)
         .single()
 
-      if (error) {
-        if (isConnectivityError(error)) {
-          await queue({ kind: 'insert', table: 'sublists', payload: insertRow })
-          return localRow
+      if (subError) {
+        if (isConnectivityError(subError)) {
+          await queueAllOffline()
+          return { sublist: localSublist, items: localItems, links: localLinks }
         }
-        if (isMissingTableError(error)) {
-          const next = sortSublists([...readLocalSublists(listId).filter((s) => s.id !== localRow.id), localRow])
-          writeLocalSublists(listId, next)
-          return localRow
+        if (isMissingTableError(subError)) {
+          writeLocalSublists(
+            listId,
+            sortSublists([...readLocalSublists(listId).filter((s) => s.id !== localSublist.id), localSublist]),
+          )
+          writeLocalSublistLinks(listId, [...readLocalSublistLinks(listId), ...localLinks])
+          return { sublist: localSublist, items: localItems, links: localLinks }
         }
-        throw new Error(rpcErrorMessage(error))
+        throw new Error(rpcErrorMessage(subError))
       }
 
-      return data
+      // 2. Any brand-new ingredient items second.
+      let savedItems: Item[] = []
+      if (itemInserts.length > 0) {
+        const { data: insItems, error: itemError } = await supabase
+          .from('items')
+          .insert(itemInserts)
+          .select(ITEM_COLUMNS)
+        if (itemError) {
+          if (isConnectivityError(itemError)) {
+            for (const itemRow of itemInserts) {
+              await queue({ kind: 'insert', table: 'items', payload: itemRow })
+            }
+            for (const linkRow of linkInserts) {
+              await queue({ kind: 'insert', table: 'sublist_items', payload: linkRow })
+            }
+            return { sublist: createdSub, items: localItems, links: localLinks }
+          }
+          throw new Error(rpcErrorMessage(itemError))
+        }
+        savedItems = insItems ?? []
+      }
+
+      // 3. Links third — both endpoint tables now hold committed rows.
+      let savedLinks: SublistItem[] = localLinks
+      if (linkInserts.length > 0) {
+        const { data: insLinks, error: linkError } = await supabase
+          .from('sublist_items')
+          .upsert(linkInserts, { onConflict: 'sublist_id,item_id', ignoreDuplicates: true })
+          .select(SUBLIST_LINK_COLUMNS)
+        if (linkError) {
+          if (isConnectivityError(linkError)) {
+            for (const linkRow of linkInserts) {
+              await queue({ kind: 'insert', table: 'sublist_items', payload: linkRow })
+            }
+          } else {
+            throw new Error(rpcErrorMessage(linkError))
+          }
+        } else if (insLinks && insLinks.length > 0) {
+          savedLinks = insLinks
+        }
+      }
+
+      return { sublist: createdSub, items: savedItems, links: savedLinks }
     },
-    onMutate: async (draft) => {
+    onMutate: async ({ draft, itemIds = [], newItems = [] }) => {
+      const allLinkIds = [...new Set([...itemIds, ...newItems.map((d) => d.id)])]
       beginLocalWrite(draft.id)
-      await client.cancelQueries({ queryKey: qk.sublists(listId) })
-      const previous = client.getQueryData<Sublist[]>(qk.sublists(listId))
+      for (const d of newItems) beginLocalWrite(d.id)
+      for (const id of allLinkIds) beginLocalWrite(linkKey(draft.id, id))
+
+      await Promise.all([
+        client.cancelQueries({ queryKey: qk.sublists(listId) }),
+        client.cancelQueries({ queryKey: qk.sublistLinks(listId) }),
+        ...(newItems.length > 0 ? [client.cancelQueries({ queryKey: qk.items(listId) })] : []),
+      ])
+
+      const previousSublists = client.getQueryData<Sublist[]>(qk.sublists(listId))
+      const previousLinks = client.getQueryData<SublistItem[]>(qk.sublistLinks(listId))
+      const previousItems = client.getQueryData<Item[]>(qk.items(listId))
+
       const now = new Date().toISOString()
       upsertSublistInCache(client, listId, {
         id: draft.id,
@@ -209,13 +338,52 @@ export function useCreateSublist(listId: string) {
         created_at: now,
         updated_at: now,
       })
-      return { previous }
+
+      for (const d of newItems) {
+        upsertItemInCache(client, listId, {
+          id: d.id,
+          list_id: listId,
+          name: d.name,
+          quantity: d.quantity ?? null,
+          category: d.category ?? null,
+          note: d.note ?? null,
+          checked: false,
+          added_by: user?.id ?? null,
+          checked_by: null,
+          checked_at: null,
+          source: 'app',
+          sort_order: d.sort_order,
+          created_at: now,
+          updated_at: now,
+        })
+      }
+
+      for (const itemId of allLinkIds) {
+        upsertSublistLinkInCache(client, listId, {
+          sublist_id: draft.id,
+          item_id: itemId,
+          list_id: listId,
+          created_at: now,
+        })
+      }
+
+      return { previousSublists, previousLinks, previousItems, allLinkIds }
     },
-    onError: (_e, _draft, ctx) => {
-      if (ctx?.previous) client.setQueryData(qk.sublists(listId), ctx.previous)
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.previousSublists) client.setQueryData(qk.sublists(listId), ctx.previousSublists)
+      if (ctx?.previousLinks) client.setQueryData(qk.sublistLinks(listId), ctx.previousLinks)
+      if (ctx?.previousItems) client.setQueryData(qk.items(listId), ctx.previousItems)
     },
-    onSuccess: (sublist) => upsertSublistInCache(client, listId, sublist),
-    onSettled: (_d, _e, draft) => endLocalWrite(draft.id),
+    onSuccess: ({ sublist, items, links }) => {
+      upsertSublistInCache(client, listId, sublist)
+      for (const item of items) upsertItemInCache(client, listId, item)
+      for (const link of links) upsertSublistLinkInCache(client, listId, link)
+    },
+    onSettled: (_d, _e, vars, ctx) => {
+      endLocalWrite(vars.draft.id)
+      for (const d of vars.newItems ?? []) endLocalWrite(d.id)
+      for (const id of ctx?.allLinkIds ?? []) endLocalWrite(linkKey(vars.draft.id, id))
+    },
   })
 }
 

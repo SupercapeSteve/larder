@@ -215,11 +215,34 @@ export default function ListScreen() {
     })
   }
 
-  /** Insert or link a single parsed phrase, optionally attaching to `sublistId`. */
-  function addSinglePhrase(raw: string, targetSublist: Sublist | null, silentDuplicate = false) {
+  /** Insert or link a single parsed phrase, optionally attaching to `targetSublist`. */
+  function addSinglePhrase(
+    raw: string,
+    targetSublist: Sublist | null,
+    silentDuplicate = false,
+    allowSameAsSublist = false,
+  ) {
     if (!listId) return
     const draft = draftFromInput(queryClient, listId, raw, rules)
     if (!draft) return
+
+    // Guard against accidentally typing the sub-list's own title (e.g. "Nachos"
+    // while inside the "Nachos" sub-list), which creates a grocery item named
+    // after the sub-list itself instead of an ingredient.
+    if (
+      targetSublist &&
+      !allowSameAsSublist &&
+      draft.name.trim().toLowerCase() === targetSublist.name.trim().toLowerCase()
+    ) {
+      showToast({
+        message: `You're in ${targetSublist.name} — type the ingredients needed for it.`,
+        action: {
+          label: `Add "${draft.name}" anyway`,
+          onAct: () => addSinglePhrase(raw, targetSublist, silentDuplicate, true),
+        },
+      })
+      return
+    }
 
     const existing = allItems.find(
       (i) => i.name.trim().toLowerCase() === draft.name.trim().toLowerCase(),
@@ -369,12 +392,18 @@ export default function ListScreen() {
       )
       for (const sid of nextSublistIds) {
         if (!currentIds.has(sid)) {
-          linkSublistItem.mutate({ sublistId: sid, itemId: item.id })
+          linkSublistItem.mutate(
+            { sublistId: sid, itemId: item.id },
+            { onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }) },
+          )
         }
       }
       for (const sid of currentIds) {
         if (!nextSublistIds.has(sid)) {
-          unlinkSublistItem.mutate({ sublistId: sid, itemId: item.id })
+          unlinkSublistItem.mutate(
+            { sublistId: sid, itemId: item.id },
+            { onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }) },
+          )
         }
       }
     }
@@ -383,45 +412,33 @@ export default function ListScreen() {
   function onSaveSublistSheet(payload: SublistFormSubmit) {
     if (!listId || !sublistModal.open) return
     const editingSub = sublistModal.sublist
+    const onErr = (error: unknown) =>
+      showToast({ message: (error as Error).message, tone: 'error' })
 
-    const applyBatchAndLinks = (targetSublistId: string, existingLinked: ReadonlySet<string>) => {
-      // Sync selected existing items.
-      for (const itemId of payload.selectedItemIds) {
-        if (!existingLinked.has(itemId)) {
-          linkSublistItem.mutate({ sublistId: targetSublistId, itemId })
-        }
-      }
-      for (const itemId of existingLinked) {
-        if (!payload.selectedItemIds.has(itemId)) {
-          unlinkSublistItem.mutate({ sublistId: targetSublistId, itemId })
-        }
-      }
+    // Split raw ingredient phrases into existing main-list matches vs brand-new items.
+    const extraMatchedIds = new Set<string>()
+    const newItemDrafts: Array<
+      NonNullable<ReturnType<typeof draftFromInput>>
+    > = []
 
-      // Create or link any batch-pasted recipe ingredients.
-      let floor = Date.now()
-      for (const phrase of payload.rawIngredients) {
-        const draft = draftFromInput(queryClient, listId, phrase, rules, floor)
-        if (!draft) continue
-        floor = draft.sort_order + 1
+    let floor = Date.now()
+    for (const phrase of payload.rawIngredients) {
+      const draft = draftFromInput(queryClient, listId, phrase, rules, floor)
+      if (!draft) continue
+      floor = draft.sort_order + 1
 
-        const match = allItems.find(
-          (i) => i.name.trim().toLowerCase() === draft.name.trim().toLowerCase(),
-        )
-        if (match) {
-          if (match.checked) onToggle(match)
-          if (!payload.selectedItemIds.has(match.id) && !existingLinked.has(match.id)) {
-            linkSublistItem.mutate({ sublistId: targetSublistId, itemId: match.id })
-          }
-        } else {
-          addItem.mutate(
-            { ...draft, sublistId: targetSublistId },
-            {
-              onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
-            },
-          )
-        }
+      const match = allItems.find(
+        (i) => i.name.trim().toLowerCase() === draft.name.trim().toLowerCase(),
+      )
+      if (match) {
+        if (match.checked) onToggle(match)
+        extraMatchedIds.add(match.id)
+      } else {
+        newItemDrafts.push(draft)
       }
     }
+
+    const desiredExistingIds = new Set([...payload.selectedItemIds, ...extraMatchedIds])
 
     if (editingSub) {
       const currentSet = itemIdsBySublist.get(editingSub.id) ?? new Set<string>()
@@ -430,11 +447,23 @@ export default function ListScreen() {
           sublist: editingSub,
           edits: { name: payload.name, emoji: payload.emoji, note: payload.note },
         },
-        {
-          onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
-        },
+        { onError: onErr },
       )
-      applyBatchAndLinks(editingSub.id, currentSet)
+
+      for (const itemId of desiredExistingIds) {
+        if (!currentSet.has(itemId)) {
+          linkSublistItem.mutate({ sublistId: editingSub.id, itemId }, { onError: onErr })
+        }
+      }
+      for (const itemId of currentSet) {
+        if (!payload.selectedItemIds.has(itemId) && !extraMatchedIds.has(itemId)) {
+          unlinkSublistItem.mutate({ sublistId: editingSub.id, itemId }, { onError: onErr })
+        }
+      }
+      for (const draft of newItemDrafts) {
+        addItem.mutate({ ...draft, sublistId: editingSub.id }, { onError: onErr })
+      }
+
       showToast({ message: `Updated ${payload.name}.` })
       return
     }
@@ -446,16 +475,22 @@ export default function ListScreen() {
     })
     if (!draft) return
 
+    // One atomic mutation: populates the sub-list, new items, and all links in
+    // cache at 0ms, and commits `sublists` → `items` → `sublist_items` in order.
     setActiveSublistId(draft.id)
-    createSublist.mutate(draft, {
-      onSuccess: () => {
-        applyBatchAndLinks(draft.id, new Set())
+    createSublist.mutate(
+      {
+        draft,
+        itemIds: [...desiredExistingIds],
+        newItems: newItemDrafts,
       },
-      onError: (error) => {
-        setActiveSublistId(null)
-        showToast({ message: (error as Error).message, tone: 'error' })
+      {
+        onError: (error) => {
+          setActiveSublistId(null)
+          onErr(error)
+        },
       },
-    })
+    )
     showToast({ message: `Created ${payload.emoji} ${payload.name}.` })
   }
 

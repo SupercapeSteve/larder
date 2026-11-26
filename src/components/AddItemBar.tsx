@@ -58,7 +58,7 @@ export function AddItemBar({
   }
 
   const placeholder = activeSublist
-    ? `Add to ${activeSublist.emoji ?? DEFAULT_SUBLIST_EMOJI} ${activeSublist.name}…`
+    ? `Add ingredient for ${activeSublist.emoji ?? DEFAULT_SUBLIST_EMOJI} ${activeSublist.name}…`
     : 'Add an item…'
 
   return (

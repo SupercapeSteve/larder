@@ -302,33 +302,7 @@ export function ItemRow({
           </span>
 
           {hasMeta ? (
-            <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-larder-500 dark:text-larder-400">
-              {sublists.map((sub) =>
-                onSelectSublist ? (
-                  <button
-                    key={sub.id}
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      onSelectSublist(sub.id)
-                    }}
-                    title={`View sub-list: ${sub.name}`}
-                    className="inline-flex max-w-[11rem] items-center gap-1 rounded-md bg-larder-100/90 px-1.5 py-0.5 text-[11px] font-medium text-larder-700 hover:bg-larder-200 dark:bg-larder-800 dark:text-larder-200 dark:hover:bg-larder-700"
-                  >
-                    <span aria-hidden>{sub.emoji ?? DEFAULT_SUBLIST_EMOJI}</span>
-                    <span className="truncate">{sub.name}</span>
-                  </button>
-                ) : (
-                  <span
-                    key={sub.id}
-                    className="inline-flex max-w-[11rem] items-center gap-1 rounded-md bg-larder-100/90 px-1.5 py-0.5 text-[11px] font-medium text-larder-700 dark:bg-larder-800 dark:text-larder-200"
-                  >
-                    <span aria-hidden>{sub.emoji ?? DEFAULT_SUBLIST_EMOJI}</span>
-                    <span className="truncate">{sub.name}</span>
-                  </span>
-                ),
-              )}
-
+            <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-larder-500 dark:text-larder-400">
               {item.note ? <span className="min-w-0 truncate">{item.note}</span> : null}
               {item.note && attribution ? <span aria-hidden>·</span> : null}
               {attribution ? (
@@ -349,6 +323,34 @@ export function ItemRow({
                   · via Siri
                 </span>
               ) : null}
+              {sublists.map((sub, idx) => (
+                <span key={sub.id} className="inline-flex min-w-0 max-w-[12rem] items-center gap-1">
+                  {idx > 0 || item.note || attribution || item.source === 'siri' ? (
+                    <span aria-hidden>·</span>
+                  ) : null}
+                  {onSelectSublist ? (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onSelectSublist(sub.id)
+                      }}
+                      title={`Filter to ${sub.name}`}
+                      className="inline-flex min-w-0 items-center gap-1 truncate text-larder-600 underline-offset-2 hover:underline dark:text-larder-300"
+                    >
+                      <span className="text-larder-400 dark:text-larder-500">for</span>
+                      <span aria-hidden>{sub.emoji ?? DEFAULT_SUBLIST_EMOJI}</span>
+                      <span className="truncate">{sub.name}</span>
+                    </button>
+                  ) : (
+                    <span className="inline-flex min-w-0 items-center gap-1 truncate">
+                      <span>for</span>
+                      <span aria-hidden>{sub.emoji ?? DEFAULT_SUBLIST_EMOJI}</span>
+                      <span className="truncate">{sub.name}</span>
+                    </span>
+                  )}
+                </span>
+              ))}
             </span>
           ) : null}
         </span>

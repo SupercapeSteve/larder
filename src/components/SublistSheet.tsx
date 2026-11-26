@@ -8,14 +8,13 @@ import {
   UNIQUE_SUBLIST_EMOJIS,
   suggestSublistEmoji,
 } from '@/lib/sublists'
-import { splitIntoItems } from '@/lib/parseItem'
 import type { Item, Sublist } from '@/types/database'
 
 export type SublistFormSubmit = {
   name: string
   emoji: string
   note: string | null
-  /** Raw ingredient lines/phrases to create (or match) and attach on creation. */
+  /** Raw ingredient lines/phrases to create (or match) and attach. */
   rawIngredients: string[]
   /** IDs of existing main-list items that should belong to this sub-list. */
   selectedItemIds: Set<string>
@@ -36,8 +35,8 @@ type SublistSheetProps = {
 /**
  * Create or manage a sub-list (dinner recipe, meal plan, party prep).
  *
- * Items added or ticked here always live on the household's main list too, so
- * you can plan by dish at home and still walk each supermarket aisle once.
+ * The sub-list itself is only a filter/plan — never an item row on the grocery
+ * list. Only the ingredients inside it live on the main list.
  */
 export function SublistSheet({
   open,
@@ -72,7 +71,7 @@ export function SublistSheet({
       setName('')
       setCustomEmoji(null)
       setNote('')
-      setSelectedIds(new Set())
+      setSelectedIds(new Set(linkedItemIds))
     }
     setIngredientsText('')
     setItemFilter('')
@@ -91,10 +90,14 @@ export function SublistSheet({
 
   const activeEmoji = customEmoji ?? suggestSublistEmoji(name)
 
-  const parsedPreview = useMemo(
-    () => (ingredientsText.trim().length > 0 ? splitIntoItems(ingredientsText) : []),
-    [ingredientsText],
-  )
+  const parsedPreview = useMemo(() => {
+    if (ingredientsText.trim().length === 0) return []
+    const dishTitle = name.trim().toLowerCase()
+    return ingredientsText
+      .split(/[,;\r\n]+/)
+      .map((part) => part.replace(/\s+/g, ' ').trim())
+      .filter((part) => part.length > 0 && part.toLowerCase() !== dishTitle)
+  }, [ingredientsText, name])
 
   const filteredExisting = useMemo(() => {
     const q = itemFilter.trim().toLowerCase()
@@ -118,7 +121,7 @@ export function SublistSheet({
     event.preventDefault()
     const trimmed = name.trim()
     if (trimmed.length === 0) {
-      setNameError('Give this sub-list a name — e.g. "Taco Tuesday".')
+      setNameError('Give this sub-list a name — e.g. "Nachos" or "Taco Tuesday".')
       nameRef.current?.focus()
       return
     }
@@ -145,7 +148,7 @@ export function SublistSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby="sublist-sheet-title"
-        className="safe-bottom animate-sheet-in scroll-y relative max-h-[calc(100dvh-0.75rem)] w-full max-w-lg rounded-t-3xl bg-white p-4 shadow-2xl dark:bg-larder-900 min-[380px]:p-5 sm:m-3 sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
+        className="safe-bottom animate-sheet-in scroll-y relative max-h-[calc(100dvh-0.75rem)] w-full max-w-lg rounded-t-3xl bg-white p-4 shadow-2xl min-[380px]:p-5 sm:m-3 sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl dark:bg-larder-900"
       >
         <div
           aria-hidden
@@ -165,7 +168,8 @@ export function SublistSheet({
               <span className="truncate">{sublist ? 'Edit sub-list' : 'New sub-list'}</span>
             </h2>
             <p className="mt-0.5 text-xs text-larder-600 dark:text-larder-400">
-              Track ingredients for a recipe, dinner plan or trip. Everything stays on the main list too.
+              Name the dish or plan, then pick which ingredients belong to it. Only the ingredients
+              appear on your main list.
             </p>
           </div>
           <button
@@ -183,7 +187,7 @@ export function SublistSheet({
             <TextField
               ref={nameRef}
               label="Dish or plan name"
-              placeholder="Pasta Carbonara, Taco night…"
+              placeholder="Nachos, Pasta Carbonara…"
               value={name}
               maxLength={80}
               onChange={(e) => {
@@ -236,37 +240,14 @@ export function SublistSheet({
             </div>
           </fieldset>
 
-          {/* ── Quick recipe batch-add ────────────────────────────────────── */}
-          <div className="space-y-1.5">
-            <label
-              htmlFor="sublist-ingredients"
-              className="block text-sm font-medium text-larder-800 dark:text-larder-200"
-            >
-              {sublist ? 'Add more ingredients' : 'Recipe ingredients (optional)'}
-            </label>
-            <textarea
-              id="sublist-ingredients"
-              rows={2}
-              value={ingredientsText}
-              onChange={(e) => setIngredientsText(e.target.value)}
-              placeholder="400g spaghetti, guanciale, pecorino, 6 eggs…"
-              className="field min-h-[68px] resize-y py-2.5 text-sm leading-snug"
-            />
-            <p className="text-xs text-larder-600 dark:text-larder-400">
-              {parsedPreview.length > 0
-                ? `Will add or link ${parsedPreview.length} ${parsedPreview.length === 1 ? 'item' : 'items'}, sorted by aisle.`
-                : 'Separate with commas or new lines — quantities like "500g flour" sort themselves out, or add items one by one afterwards.'}
-            </p>
-          </div>
-
-          {/* ── Include existing main-list items ──────────────────────────── */}
+          {/* ── Pick items already on the main list (shown first!) ────────── */}
           {allItems.length > 0 ? (
             <div className="space-y-2">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-sm font-medium text-larder-800 dark:text-larder-200">
-                  Items already on your main list
+                  Include items from your main list
                 </span>
-                <span className="text-xs text-larder-500">
+                <span className="text-xs font-medium text-larder-600 dark:text-larder-400">
                   {selectedIds.size} selected
                 </span>
               </div>
@@ -288,7 +269,7 @@ export function SublistSheet({
                 </div>
               ) : null}
 
-              <ul className="scroll-y max-h-40 divide-y divide-larder-100 rounded-xl border border-larder-200 bg-larder-50/50 dark:divide-larder-800 dark:border-larder-800 dark:bg-larder-950/40">
+              <ul className="scroll-y max-h-44 divide-y divide-larder-100 rounded-xl border border-larder-200 bg-larder-50/50 dark:divide-larder-800 dark:border-larder-800 dark:bg-larder-950/40">
                 {filteredExisting.map((item) => {
                   const included = selectedIds.has(item.id)
                   return (
@@ -336,6 +317,29 @@ export function SublistSheet({
               </ul>
             </div>
           ) : null}
+
+          {/* ── Add brand-new ingredients ─────────────────────────────────── */}
+          <div className="space-y-1.5">
+            <label
+              htmlFor="sublist-ingredients"
+              className="block text-sm font-medium text-larder-800 dark:text-larder-200"
+            >
+              Add new ingredients not on your list yet (optional)
+            </label>
+            <textarea
+              id="sublist-ingredients"
+              rows={2}
+              value={ingredientsText}
+              onChange={(e) => setIngredientsText(e.target.value)}
+              placeholder="e.g. tortilla chips, cheddar cheese, salsa, jalapeños…"
+              className="field min-h-[64px] resize-y py-2.5 text-sm leading-snug"
+            />
+            <p className="text-xs text-larder-600 dark:text-larder-400">
+              {parsedPreview.length > 0
+                ? `Will add ${parsedPreview.length} ${parsedPreview.length === 1 ? 'ingredient' : 'ingredients'} to ${name.trim() || 'this dish'} and your main list.`
+                : 'Separate ingredients with commas or new lines, or add them from the bottom bar later.'}
+            </p>
+          </div>
 
           {/* ── Delete controls when editing ──────────────────────────────── */}
           {sublist && onDelete ? (
