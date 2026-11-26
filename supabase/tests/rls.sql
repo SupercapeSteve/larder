@@ -621,6 +621,13 @@ begin
   insert into public.sublist_items (sublist_id, item_id, list_id)
   values (sid_a, iid_a, lid_a);
 
+  -- PostgREST `.upsert()` issues `INSERT ... ON CONFLICT DO UPDATE`, which
+  -- requires UPDATE privilege + policy even when no columns change. Prove the
+  -- exact statement succeeds for an editor.
+  insert into public.sublist_items (sublist_id, item_id, list_id)
+  values (sid_a, iid_a, lid_a)
+  on conflict (sublist_id, item_id) do update set list_id = excluded.list_id;
+
   -- Bob (evicted from Alpha earlier) sees neither the sub-list nor its links.
   perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
   select count(*) into n from public.sublists where list_id = lid_a;

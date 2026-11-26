@@ -380,9 +380,9 @@ export function useLinkSublistItem(listId: string) {
 
       const { data, error } = await supabase
         .from('sublist_items')
-        .upsert(row, { onConflict: 'sublist_id,item_id' })
+        .upsert(row, { onConflict: 'sublist_id,item_id', ignoreDuplicates: true })
         .select(SUBLIST_LINK_COLUMNS)
-        .single()
+        .maybeSingle()
 
       if (error) {
         if (isConnectivityError(error)) {
@@ -398,7 +398,7 @@ export function useLinkSublistItem(listId: string) {
         }
         throw new Error(rpcErrorMessage(error))
       }
-      return data
+      return data ?? localLink
     },
     onMutate: async ({ sublistId, itemId }) => {
       const key = linkKey(sublistId, itemId)
@@ -508,7 +508,7 @@ export function useRestoreSublistLinks(listId: string) {
 
       const { data, error } = await supabase
         .from('sublist_items')
-        .upsert(rows, { onConflict: 'sublist_id,item_id' })
+        .upsert(rows, { onConflict: 'sublist_id,item_id', ignoreDuplicates: true })
         .select(SUBLIST_LINK_COLUMNS)
 
       if (error) {

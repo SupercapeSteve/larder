@@ -7,8 +7,9 @@ import { useUser } from '@/hooks/useAuth'
 import { categorise, type CategoryRule } from '@/lib/categories'
 import { parseItemInput } from '@/lib/parseItem'
 import { beginLocalWrite, endLocalWrite, newId } from '@/lib/itemSync'
+import { isMissingTableError, readLocalSublistLinks, writeLocalSublistLinks } from '@/lib/sublists'
 import { useOutbox } from '@/hooks/useOutbox'
-import type { Item } from '@/types/database'
+import type { Item, SublistItem } from '@/types/database'
 
 const VAPID_CONFIGURED = Boolean(import.meta.env.VITE_VAPID_PUBLIC_KEY)
 
@@ -144,6 +145,8 @@ export type NewItemDraft = {
   quantity?: string | null
   category?: string | null
   note?: string | null
+  /** Optional sub-list to attach the item to AFTER the item row commits. */
+  sublistId?: string | null
 }
 
 export function useAddItem(listId: string) {
@@ -163,11 +166,16 @@ export function useAddItem(listId: string) {
         source: 'app',
         sort_order: draft.sort_order,
       }
+      const linkRow = draft.sublistId
+        ? { sublist_id: draft.sublistId, item_id: draft.id, list_id: listId }
+        : null
 
       // The id is generated on the client, so a queued insert is idempotent:
-      // replaying one that already landed is a duplicate-key no-op.
+      // replaying one that already landed is a duplicate-key no-op. Queue the
+      // item BEFORE its sub-list link so FIFO replay satisfies foreign keys.
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         await queue({ kind: 'insert', table: 'items', payload: row })
+        if (linkRow) await queue({ kind: 'insert', table: 'sublist_items', payload: linkRow })
         return optimisticItem(draft, listId, user?.id ?? null)
       }
 
@@ -175,9 +183,31 @@ export function useAddItem(listId: string) {
       if (error) {
         if (isConnectivityError(error)) {
           await queue({ kind: 'insert', table: 'items', payload: row })
+          if (linkRow) await queue({ kind: 'insert', table: 'sublist_items', payload: linkRow })
           return optimisticItem(draft, listId, user?.id ?? null)
         }
         throw new Error(rpcErrorMessage(error))
+      }
+
+      // Link strictly AFTER the item INSERT commits — firing them in parallel
+      // races `enforce_sublist_item_integrity` against an uncommitted item row.
+      if (linkRow) {
+        const { error: linkError } = await supabase
+          .from('sublist_items')
+          .upsert(linkRow, { onConflict: 'sublist_id,item_id', ignoreDuplicates: true })
+        if (linkError) {
+          if (isConnectivityError(linkError)) {
+            await queue({ kind: 'insert', table: 'sublist_items', payload: linkRow })
+          } else if (isMissingTableError(linkError)) {
+            const existing = readLocalSublistLinks(listId)
+            writeLocalSublistLinks(listId, [
+              ...existing,
+              { ...linkRow, created_at: new Date().toISOString() },
+            ])
+          } else {
+            throw new Error(rpcErrorMessage(linkError))
+          }
+        }
       }
 
       notifyHouseholdAdd(listId, data.quantity ? `${data.quantity} ${data.name}` : data.name)
@@ -185,21 +215,49 @@ export function useAddItem(listId: string) {
     },
     onMutate: async (draft) => {
       beginLocalWrite(draft.id)
+      const linkGuard = draft.sublistId ? `link:${draft.sublistId}:${draft.id}` : null
+      if (linkGuard) beginLocalWrite(linkGuard)
+
       await client.cancelQueries({ queryKey: qk.items(listId) })
       const previous = client.getQueryData<Item[]>(qk.items(listId))
+      const previousLinks = draft.sublistId
+        ? client.getQueryData<SublistItem[]>(qk.sublistLinks(listId))
+        : undefined
 
       const optimistic = optimisticItem(draft, listId, user?.id ?? null)
       upsertItemInCache(client, listId, optimistic)
-      return { previous }
+
+      if (draft.sublistId) {
+        const sid = draft.sublistId
+        client.setQueryData<SublistItem[]>(qk.sublistLinks(listId), (old) => {
+          const existing = old ?? []
+          if (existing.some((l) => l.sublist_id === sid && l.item_id === draft.id)) return existing
+          return [
+            ...existing,
+            {
+              sublist_id: sid,
+              item_id: draft.id,
+              list_id: listId,
+              created_at: optimistic.created_at,
+            },
+          ]
+        })
+      }
+
+      return { previous, previousLinks }
     },
-    onError: (_error, _draft, context) => {
+    onError: (_error, draft, context) => {
       if (context?.previous) client.setQueryData(qk.items(listId), context.previous)
+      if (draft.sublistId && context?.previousLinks) {
+        client.setQueryData(qk.sublistLinks(listId), context.previousLinks)
+      }
     },
     onSuccess: (item) => {
       upsertItemInCache(client, listId, item)
     },
     onSettled: (_item, _error, draft) => {
       endLocalWrite(draft.id)
+      if (draft.sublistId) endLocalWrite(`link:${draft.sublistId}:${draft.id}`)
     },
   })
 }

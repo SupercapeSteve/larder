@@ -255,13 +255,13 @@ export default function ListScreen() {
           action: {
             label: 'Add anyway',
             onAct: () => {
-              addItem.mutate(draft, {
-                onError: (error) =>
-                  showToast({ message: (error as Error).message, tone: 'error' }),
-              })
-              if (targetSublist) {
-                linkSublistItem.mutate({ sublistId: targetSublist.id, itemId: draft.id })
-              }
+              addItem.mutate(
+                { ...draft, sublistId: targetSublist?.id ?? null },
+                {
+                  onError: (error) =>
+                    showToast({ message: (error as Error).message, tone: 'error' }),
+                },
+              )
             },
           },
         })
@@ -269,17 +269,12 @@ export default function ListScreen() {
       return
     }
 
-    addItem.mutate(draft, {
-      onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
-    })
-    if (targetSublist) {
-      linkSublistItem.mutate(
-        { sublistId: targetSublist.id, itemId: draft.id },
-        {
-          onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
-        },
-      )
-    }
+    addItem.mutate(
+      { ...draft, sublistId: targetSublist?.id ?? null },
+      {
+        onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
+      },
+    )
   }
 
   function onAdd(raw: string) {
@@ -309,12 +304,12 @@ export default function ListScreen() {
           linkSublistItem.mutate({ sublistId: activeSublist.id, itemId: existing.id })
         }
       } else {
-        addItem.mutate(draft, {
-          onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
-        })
-        if (activeSublist) {
-          linkSublistItem.mutate({ sublistId: activeSublist.id, itemId: draft.id })
-        }
+        addItem.mutate(
+          { ...draft, sublistId: activeSublist?.id ?? null },
+          {
+            onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
+          },
+        )
       }
     }
     showToast({
@@ -418,10 +413,12 @@ export default function ListScreen() {
             linkSublistItem.mutate({ sublistId: targetSublistId, itemId: match.id })
           }
         } else {
-          addItem.mutate(draft, {
-            onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
-          })
-          linkSublistItem.mutate({ sublistId: targetSublistId, itemId: draft.id })
+          addItem.mutate(
+            { ...draft, sublistId: targetSublistId },
+            {
+              onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
+            },
+          )
         }
       }
     }
@@ -449,11 +446,16 @@ export default function ListScreen() {
     })
     if (!draft) return
 
-    createSublist.mutate(draft, {
-      onError: (error) => showToast({ message: (error as Error).message, tone: 'error' }),
-    })
-    applyBatchAndLinks(draft.id, new Set())
     setActiveSublistId(draft.id)
+    createSublist.mutate(draft, {
+      onSuccess: () => {
+        applyBatchAndLinks(draft.id, new Set())
+      },
+      onError: (error) => {
+        setActiveSublistId(null)
+        showToast({ message: (error as Error).message, tone: 'error' })
+      },
+    })
     showToast({ message: `Created ${payload.emoji} ${payload.name}.` })
   }
 
