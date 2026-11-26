@@ -50,7 +50,7 @@ export function InstallHint() {
   }
 
   return (
-    <div className="safe-bottom fixed inset-x-0 bottom-0 z-40 px-3 pb-3">
+    <div className="safe-bottom safe-x fixed inset-x-0 bottom-0 z-40 px-3 pb-3">
       <div className="animate-toast-in mx-auto flex max-w-md items-start gap-3 rounded-2xl border border-larder-200 bg-white p-4 shadow-lg dark:border-larder-700 dark:bg-larder-900">
         <Share className="mt-0.5 h-5 w-5 shrink-0 text-larder-600 dark:text-larder-400" aria-hidden />
         <div className="min-w-0 flex-1">

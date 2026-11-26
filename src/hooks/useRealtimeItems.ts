@@ -4,8 +4,15 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/
 import { supabase } from '@/lib/supabase'
 import { qk } from '@/lib/queryClient'
 import { removeItemFromCache, upsertItemInCache } from '@/hooks/useItems'
+import {
+  linkKey,
+  removeSublistFromCache,
+  removeSublistLinkFromCache,
+  upsertSublistInCache,
+  upsertSublistLinkInCache,
+} from '@/hooks/useSublists'
 import { clearPendingLocalWrites, hasPendingLocalWrite, isNewer } from '@/lib/itemSync'
-import type { Item } from '@/types/database'
+import type { Item, Sublist, SublistItem } from '@/types/database'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'offline'
 
@@ -18,28 +25,55 @@ function isItem(value: unknown): value is Item {
   return typeof v.id === 'string' && typeof v.list_id === 'string' && typeof v.name === 'string'
 }
 
+function isSublist(value: unknown): value is Sublist {
+  if (typeof value !== 'object' || value === null) return false
+  const v = value as Record<string, unknown>
+  return typeof v.id === 'string' && typeof v.list_id === 'string' && typeof v.name === 'string'
+}
+
+function isSublistLink(value: unknown): value is SublistItem {
+  if (typeof value !== 'object' || value === null) return false
+  const v = value as Record<string, unknown>
+  return (
+    typeof v.sublist_id === 'string' &&
+    typeof v.item_id === 'string' &&
+    typeof v.list_id === 'string'
+  )
+}
+
 /**
- * All a DELETE payload gives us.
+ * All a DELETE payload gives us on single-PK tables (`items`, `sublists`).
  *
  * Supabase strips the old record down to the primary key whenever RLS is
  * enabled on the table — deliberately, because DELETE events are broadcast
  * without a per-row RLS check and a full row would leak data. `replica
  * identity full` does not change this; RLS wins. So a delete arrives as
- * `{ id }` and nothing else.
+ * `{ id }` and nothing else. On `sublist_items`, the composite primary key IS
+ * `(sublist_id, item_id)`, so both halves arrive intact.
  */
 function hasId(value: unknown): value is { id: string } {
   if (typeof value !== 'object' || value === null) return false
   return typeof (value as Record<string, unknown>).id === 'string'
 }
 
+function hasLinkPk(value: unknown): value is { sublist_id: string; item_id: string } {
+  if (typeof value !== 'object' || value === null) return false
+  const v = value as Record<string, unknown>
+  return typeof v.sublist_id === 'string' && typeof v.item_id === 'string'
+}
+
 /**
- * Live updates for one list.
+ * Live updates for one list (items, sub-lists, and sub-list links).
  *
  * Design notes, each of which is load-bearing:
  *
  *  - Events patch the TanStack cache directly. Refetching the whole list on
  *    every event would turn a housemate ticking off ten things into ten round
  *    trips and ten re-renders.
+ *  - `sublists` / `sublist_items` subscribe on a separate channel from `items`.
+ *    During a rolling deploy (if the frontend ever lands a beat before the SQL
+ *    migration), an unmigrated table error on `sublists` cannot degrade or
+ *    disconnect the core `items` stream.
  *  - Rows with a local write in flight are skipped. The server is echoing a
  *    state we have already moved past, and applying it visibly reverts the tap
  *    that was just made.
@@ -57,6 +91,7 @@ export function useRealtimeItems(listId: string | undefined) {
   const queryClient = useQueryClient()
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
   const channelRef = useRef<RealtimeChannel | null>(null)
+  const sublistsChannelRef = useRef<RealtimeChannel | null>(null)
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const attempts = useRef(0)
   const subscribeRef = useRef<(() => void) | null>(null)
@@ -68,6 +103,8 @@ export function useRealtimeItems(listId: string | undefined) {
     // is not filtered out by a stale guard.
     clearPendingLocalWrites()
     void queryClient.invalidateQueries({ queryKey: qk.items(listId) })
+    void queryClient.invalidateQueries({ queryKey: qk.sublists(listId) })
+    void queryClient.invalidateQueries({ queryKey: qk.sublistLinks(listId) })
   }, [listId, queryClient])
 
   useEffect(() => {
@@ -88,6 +125,10 @@ export function useRealtimeItems(listId: string | undefined) {
         void supabase.removeChannel(channelRef.current)
         channelRef.current = null
       }
+      if (sublistsChannelRef.current) {
+        void supabase.removeChannel(sublistsChannelRef.current)
+        sublistsChannelRef.current = null
+      }
     }
 
     function scheduleRetry() {
@@ -103,38 +144,66 @@ export function useRealtimeItems(listId: string | undefined) {
       }, jittered)
     }
 
-    function handleDelete(payload: RealtimePostgresChangesPayload<Item>) {
+    function handleItemDelete(payload: RealtimePostgresChangesPayload<Item>) {
       if (!listId) return
-
       const old = payload.old
       if (!hasId(old)) return
       if (hasPendingLocalWrite(old.id)) return
 
-      // Removing an id we do not hold is a no-op, which is what makes the
-      // unfiltered subscription below safe.
       removeItemFromCache(queryClient, listId, old.id)
+      queryClient.setQueryData<SublistItem[]>(qk.sublistLinks(listId), (prev) =>
+        (prev ?? []).filter((l) => l.item_id !== old.id),
+      )
     }
 
-    function handleUpsert(payload: RealtimePostgresChangesPayload<Item>) {
+    function handleItemUpsert(payload: RealtimePostgresChangesPayload<Item>) {
       if (!listId) return
-
       const row = payload.new
       if (!isItem(row)) return
       if (row.list_id !== listId) return
       if (hasPendingLocalWrite(row.id)) return
 
-      // Staleness guard, for INSERT as well as UPDATE.
-      //
-      // It has to cover INSERT: add an item, tick it off a second later, and
-      // the INSERT echo can still be in flight. That echo carries the row as it
-      // was when inserted — checked: false — so applying it silently un-ticks
-      // the item a moment after the user tapped it. Any payload older than what
-      // we already hold is dropped.
       const current = queryClient.getQueryData<Item[]>(qk.items(listId)) ?? []
       const existing = current.find((i) => i.id === row.id)
       if (existing && !isNewer(row, existing)) return
 
       upsertItemInCache(queryClient, listId, row)
+    }
+
+    function handleSublistUpsert(payload: RealtimePostgresChangesPayload<Sublist>) {
+      if (!listId) return
+      const row = payload.new
+      if (!isSublist(row) || row.list_id !== listId) return
+      if (hasPendingLocalWrite(row.id)) return
+
+      const current = queryClient.getQueryData<Sublist[]>(qk.sublists(listId)) ?? []
+      const existing = current.find((s) => s.id === row.id)
+      if (existing && !isNewer(row, existing)) return
+
+      upsertSublistInCache(queryClient, listId, row)
+    }
+
+    function handleSublistDelete(payload: RealtimePostgresChangesPayload<Sublist>) {
+      if (!listId) return
+      const old = payload.old
+      if (!hasId(old) || hasPendingLocalWrite(old.id)) return
+      removeSublistFromCache(queryClient, listId, old.id)
+    }
+
+    function handleLinkInsert(payload: RealtimePostgresChangesPayload<SublistItem>) {
+      if (!listId) return
+      const row = payload.new
+      if (!isSublistLink(row) || row.list_id !== listId) return
+      if (hasPendingLocalWrite(linkKey(row.sublist_id, row.item_id))) return
+      upsertSublistLinkInCache(queryClient, listId, row)
+    }
+
+    function handleLinkDelete(payload: RealtimePostgresChangesPayload<SublistItem>) {
+      if (!listId) return
+      const old = payload.old
+      if (!hasLinkPk(old)) return
+      if (hasPendingLocalWrite(linkKey(old.sublist_id, old.item_id))) return
+      removeSublistLinkFromCache(queryClient, listId, old.sublist_id, old.item_id)
     }
 
     function subscribe() {
@@ -150,29 +219,20 @@ export function useRealtimeItems(listId: string | undefined) {
 
       const channel = supabase
         .channel(`items:${listId}`, { config: { private: false } })
-        // INSERT and UPDATE carry the whole row, so they can be filtered
-        // server-side to this list and arrive ready to apply.
         .on<Item>(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'items', filter: `list_id=eq.${listId}` },
-          handleUpsert,
+          handleItemUpsert,
         )
         .on<Item>(
           'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'items', filter: `list_id=eq.${listId}` },
-          handleUpsert,
+          handleItemUpsert,
         )
-        // DELETE is deliberately NOT filtered. Because RLS is enabled on items,
-        // Supabase reduces the old record to its primary key — list_id is not in
-        // the payload, so a `list_id=eq.…` filter can never match and the event
-        // is simply never delivered. That is why deletes only appeared after a
-        // manual refresh. Subscribing unfiltered and removing by id fixes it;
-        // ids for other households are just UUIDs we do not hold, so they fall
-        // through harmlessly.
         .on<Item>(
           'postgres_changes',
           { event: 'DELETE', schema: 'public', table: 'items' },
-          handleDelete,
+          handleItemDelete,
         )
         .subscribe((channelStatus) => {
           if (disposed) return
@@ -180,7 +240,6 @@ export function useRealtimeItems(listId: string | undefined) {
             case 'SUBSCRIBED': {
               attempts.current = 0
               setStatus('connected')
-              // Catch up on anything missed while the socket was down.
               reconcile()
               break
             }
@@ -196,7 +255,42 @@ export function useRealtimeItems(listId: string | undefined) {
           }
         })
 
+      const sublistsChannel = supabase
+        .channel(`sublists:${listId}`, { config: { private: false } })
+        .on<Sublist>(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'sublists', filter: `list_id=eq.${listId}` },
+          handleSublistUpsert,
+        )
+        .on<Sublist>(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'sublists', filter: `list_id=eq.${listId}` },
+          handleSublistUpsert,
+        )
+        .on<Sublist>(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'sublists' },
+          handleSublistDelete,
+        )
+        .on<SublistItem>(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'sublist_items',
+            filter: `list_id=eq.${listId}`,
+          },
+          handleLinkInsert,
+        )
+        .on<SublistItem>(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'sublist_items' },
+          handleLinkDelete,
+        )
+        .subscribe()
+
       channelRef.current = channel
+      sublistsChannelRef.current = sublistsChannel
     }
 
     subscribeRef.current = subscribe
@@ -205,8 +299,6 @@ export function useRealtimeItems(listId: string | undefined) {
     function onVisibilityChange() {
       if (document.visibilityState !== 'visible') return
       reconcile()
-      // The socket is usually dead after an iOS suspend but does not always
-      // say so. Rebuild it rather than trusting the reported state.
       attempts.current = 0
       subscribe()
     }

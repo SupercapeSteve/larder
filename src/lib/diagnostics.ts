@@ -55,7 +55,7 @@ export async function collectDiagnostics(error?: unknown): Promise<Diagnostics> 
 
   return {
     when: new Date().toISOString(),
-    app: 'Larder 1.1.0',
+    app: 'Larder 1.2.0',
     // Path only — a URL can carry a household id, and a recovery link carries
     // tokens in its fragment.
     url: window.location.pathname,

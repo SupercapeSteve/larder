@@ -10,24 +10,36 @@
  * IndexedDB rather than localStorage: writes must survive the tab being killed
  * mid-shop, and localStorage is synchronous and size-capped.
  *
- * Ordering matters — an "add" must be replayed before the "check" that follows
- * it — so the queue is strictly FIFO and a failure stops the drain rather than
- * skipping ahead.
+ * Ordering matters — an "add" must be replayed before the "check" or sub-list
+ * link that follows it — so the queue is strictly FIFO and a failure stops the
+ * drain rather than skipping ahead.
  */
 
 const DB_NAME = 'larder-outbox'
 const STORE = 'mutations'
 const DB_VERSION = 1
 
-import type { ItemInsert, ItemUpdate } from '@/types/database'
+import type {
+  ItemInsert,
+  ItemUpdate,
+  SublistInsert,
+  SublistItemInsert,
+  SublistUpdate,
+} from '@/types/database'
 
-// Typed against the table rather than Record<string, unknown>: a queued write
+// Typed against the tables rather than Record<string, unknown>: a queued write
 // is replayed verbatim much later, so a column typo would surface as a runtime
 // failure in a shop rather than a compile error here.
 export type OutboxOp =
   | { kind: 'insert'; table: 'items'; payload: ItemInsert }
   | { kind: 'update'; table: 'items'; id: string; payload: ItemUpdate }
   | { kind: 'delete'; table: 'items'; id: string }
+  | { kind: 'delete-many'; table: 'items'; ids: string[] }
+  | { kind: 'insert'; table: 'sublists'; payload: SublistInsert }
+  | { kind: 'update'; table: 'sublists'; id: string; payload: SublistUpdate }
+  | { kind: 'delete'; table: 'sublists'; id: string }
+  | { kind: 'insert'; table: 'sublist_items'; payload: SublistItemInsert }
+  | { kind: 'delete-link'; table: 'sublist_items'; sublist_id: string; item_id: string }
 
 export type OutboxEntry = {
   /** Auto-increment key; also the replay order. */

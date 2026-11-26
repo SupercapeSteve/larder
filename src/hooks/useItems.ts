@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { functionsBaseUrl } from '@/lib/env'
 import { qk } from '@/lib/queryClient'
 import { rpcErrorMessage } from '@/lib/authErrors'
 import { useUser } from '@/hooks/useAuth'
@@ -9,6 +10,8 @@ import { beginLocalWrite, endLocalWrite, newId } from '@/lib/itemSync'
 import { useOutbox } from '@/hooks/useOutbox'
 import type { Item } from '@/types/database'
 
+const VAPID_CONFIGURED = Boolean(import.meta.env.VITE_VAPID_PUBLIC_KEY)
+
 /**
  * Was this a connectivity failure rather than a refusal?
  *
@@ -17,7 +20,7 @@ import type { Item } from '@/types/database'
  * is the difference between "the server said no" and "you are in a chest
  * freezer aisle with no signal".
  */
-function isConnectivityError(error: unknown): boolean {
+export function isConnectivityError(error: unknown): boolean {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return true
   const message = (
     error instanceof Error ? error.message : String((error as { message?: string })?.message ?? '')
@@ -28,6 +31,34 @@ function isConnectivityError(error: unknown): boolean {
     message.includes('network request failed') ||
     message.includes('load failed')
   )
+}
+
+/**
+ * Best-effort push nudge to housemates who opted into notifications.
+ * Never blocks a mutation, and skips the network round-trip entirely when VAPID
+ * is not configured on this deployment.
+ */
+function notifyHouseholdAdd(listId: string, itemName: string): void {
+  if (!VAPID_CONFIGURED || !listId) return
+  void supabase.auth
+    .getSession()
+    .then(({ data }) => {
+      const token = data.session?.access_token
+      if (!token) return
+      return fetch(`${functionsBaseUrl}/notify`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          list_id: listId,
+          title: 'Added to Larder',
+          body: itemName.slice(0, 140),
+        }),
+      })
+    })
+    .catch(() => undefined)
 }
 
 const ITEM_COLUMNS =
@@ -75,13 +106,13 @@ export function removeItemFromCache(client: QueryClient, listId: string, itemId:
   client.setQueryData<Item[]>(qk.items(listId), (old) => (old ?? []).filter((i) => i.id !== itemId))
 }
 
-function nextSortOrder(client: QueryClient, listId: string): number {
+export function nextSortOrder(client: QueryClient, listId: string): number {
   const items = client.getQueryData<Item[]>(qk.items(listId)) ?? []
   // Monotonic and collision-free across devices without a round trip.
   return Math.max(Date.now(), ...items.map((i) => i.sort_order + 1))
 }
 
-/* ── Mutations. Every one of these is optimistic. ─────────────────────────── */
+/* ── Mutations. Every one of these is optimistic and offline-capable. ─────── */
 
 /** The row as it will exist once a queued insert reaches the server. */
 function optimisticItem(
@@ -148,6 +179,8 @@ export function useAddItem(listId: string) {
         }
         throw new Error(rpcErrorMessage(error))
       }
+
+      notifyHouseholdAdd(listId, data.quantity ? `${data.quantity} ${data.name}` : data.name)
       return data
     },
     onMutate: async (draft) => {
@@ -155,23 +188,7 @@ export function useAddItem(listId: string) {
       await client.cancelQueries({ queryKey: qk.items(listId) })
       const previous = client.getQueryData<Item[]>(qk.items(listId))
 
-      const now = new Date().toISOString()
-      const optimistic: Item = {
-        id: draft.id,
-        list_id: listId,
-        name: draft.name,
-        quantity: draft.quantity ?? null,
-        category: draft.category ?? null,
-        note: draft.note ?? null,
-        checked: false,
-        added_by: user?.id ?? null,
-        checked_by: null,
-        checked_at: null,
-        source: 'app',
-        sort_order: draft.sort_order,
-        created_at: now,
-        updated_at: now,
-      }
+      const optimistic = optimisticItem(draft, listId, user?.id ?? null)
       upsertItemInCache(client, listId, optimistic)
       return { previous }
     },
@@ -197,16 +214,18 @@ export function draftFromInput(
   listId: string,
   raw: string,
   rules: readonly CategoryRule[] = [],
+  sortFloor?: number,
 ): (NewItemDraft & { id: string; sort_order: number }) | null {
   const parsed = parseItemInput(raw)
   if (parsed.name.length === 0) return null
+  const next = nextSortOrder(client, listId)
   return {
     id: newId(),
     name: parsed.name.slice(0, 200),
     quantity: parsed.quantity,
     category: categorise(parsed.name, rules),
     note: null,
-    sort_order: nextSortOrder(client, listId),
+    sort_order: sortFloor !== undefined ? Math.max(next, sortFloor) : next,
   }
 }
 
@@ -276,21 +295,40 @@ export type ItemEdits = {
 
 export function useUpdateItem(listId: string) {
   const client = useQueryClient()
+  const { queue } = useOutbox()
 
   return useMutation({
     mutationFn: async ({ item, edits }: { item: Item; edits: ItemEdits }): Promise<Item> => {
+      const patch = {
+        name: edits.name,
+        quantity: edits.quantity,
+        category: edits.category,
+        note: edits.note,
+      }
+      const locally = (): Item => ({
+        ...item,
+        ...patch,
+        updated_at: new Date().toISOString(),
+      })
+
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        await queue({ kind: 'update', table: 'items', id: item.id, payload: patch })
+        return locally()
+      }
+
       const { data, error } = await supabase
         .from('items')
-        .update({
-          name: edits.name,
-          quantity: edits.quantity,
-          category: edits.category,
-          note: edits.note,
-        })
+        .update(patch)
         .eq('id', item.id)
         .select(ITEM_COLUMNS)
         .single()
-      if (error) throw new Error(rpcErrorMessage(error))
+      if (error) {
+        if (isConnectivityError(error)) {
+          await queue({ kind: 'update', table: 'items', id: item.id, payload: patch })
+          return locally()
+        }
+        throw new Error(rpcErrorMessage(error))
+      }
       return data
     },
     onMutate: async ({ item, edits }) => {
@@ -354,28 +392,41 @@ export function useDeleteItem(listId: string) {
  */
 export function useRestoreItems(listId: string) {
   const client = useQueryClient()
+  const { queue } = useOutbox()
 
   return useMutation({
     mutationFn: async (items: Item[]): Promise<Item[]> => {
-      const { data, error } = await supabase
-        .from('items')
-        .insert(
-          items.map((item) => ({
-            id: item.id,
-            list_id: item.list_id,
-            name: item.name,
-            quantity: item.quantity,
-            category: item.category,
-            note: item.note,
-            checked: item.checked,
-            checked_by: item.checked_by,
-            checked_at: item.checked_at,
-            source: item.source,
-            sort_order: item.sort_order,
-          })),
-        )
-        .select(ITEM_COLUMNS)
-      if (error) throw new Error(rpcErrorMessage(error))
+      const rows = items.map((item) => ({
+        id: item.id,
+        list_id: item.list_id,
+        name: item.name,
+        quantity: item.quantity,
+        category: item.category,
+        note: item.note,
+        checked: item.checked,
+        checked_by: item.checked_by,
+        checked_at: item.checked_at,
+        source: item.source,
+        sort_order: item.sort_order,
+      }))
+
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        for (const row of rows) {
+          await queue({ kind: 'insert', table: 'items', payload: row })
+        }
+        return items
+      }
+
+      const { data, error } = await supabase.from('items').insert(rows).select(ITEM_COLUMNS)
+      if (error) {
+        if (isConnectivityError(error)) {
+          for (const row of rows) {
+            await queue({ kind: 'insert', table: 'items', payload: row })
+          }
+          return items
+        }
+        throw new Error(rpcErrorMessage(error))
+      }
       return data ?? []
     },
     onMutate: async (items) => {
@@ -399,18 +450,26 @@ export function useRestoreItems(listId: string) {
 
 export function useClearChecked(listId: string) {
   const client = useQueryClient()
+  const { queue } = useOutbox()
 
   return useMutation({
     mutationFn: async (items: Item[]): Promise<void> => {
       if (items.length === 0) return
-      const { error } = await supabase
-        .from('items')
-        .delete()
-        .in(
-          'id',
-          items.map((i) => i.id),
-        )
-      if (error) throw new Error(rpcErrorMessage(error))
+      const ids = items.map((i) => i.id)
+
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        await queue({ kind: 'delete-many', table: 'items', ids })
+        return
+      }
+
+      const { error } = await supabase.from('items').delete().in('id', ids)
+      if (error) {
+        if (isConnectivityError(error)) {
+          await queue({ kind: 'delete-many', table: 'items', ids })
+          return
+        }
+        throw new Error(rpcErrorMessage(error))
+      }
     },
     onMutate: async (items) => {
       for (const item of items) beginLocalWrite(item.id)

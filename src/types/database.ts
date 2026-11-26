@@ -188,6 +188,93 @@ export type Database = {
           },
         ]
       }
+      sublists: {
+        Row: {
+          id: string
+          list_id: string
+          name: string
+          emoji: string | null
+          note: string | null
+          sort_order: number
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          list_id: string
+          name: string
+          emoji?: string | null
+          note?: string | null
+          sort_order?: number
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          list_id?: string
+          name?: string
+          emoji?: string | null
+          note?: string | null
+          sort_order?: number
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'sublists_list_id_fkey'
+            columns: ['list_id']
+            isOneToOne: false
+            referencedRelation: 'lists'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      sublist_items: {
+        Row: {
+          sublist_id: string
+          item_id: string
+          list_id: string
+          created_at: string
+        }
+        Insert: {
+          sublist_id: string
+          item_id: string
+          list_id: string
+          created_at?: string
+        }
+        Update: {
+          sublist_id?: string
+          item_id?: string
+          list_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'sublist_items_sublist_id_fkey'
+            columns: ['sublist_id']
+            isOneToOne: false
+            referencedRelation: 'sublists'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'sublist_items_item_id_fkey'
+            columns: ['item_id']
+            isOneToOne: false
+            referencedRelation: 'items'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'sublist_items_list_id_fkey'
+            columns: ['list_id']
+            isOneToOne: false
+            referencedRelation: 'lists'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       purchase_history: {
         Row: {
           household_id: string
@@ -406,10 +493,15 @@ export type Household = Tables<'households'>
 export type HouseholdMember = Tables<'household_members'>
 export type List = Tables<'lists'>
 export type Item = Tables<'items'>
+export type Sublist = Tables<'sublists'>
+export type SublistItem = Tables<'sublist_items'>
 export type ApiToken = Tables<'api_tokens'>
 
 export type ItemInsert = TablesInsert<'items'>
 export type ItemUpdate = TablesUpdate<'items'>
+export type SublistInsert = TablesInsert<'sublists'>
+export type SublistUpdate = TablesUpdate<'sublists'>
+export type SublistItemInsert = TablesInsert<'sublist_items'>
 
 /** Payload returned by the `create_household` RPC. */
 export type CreatedHousehold = {

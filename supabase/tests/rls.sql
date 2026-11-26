@@ -587,6 +587,82 @@ begin
 end;
 $$;
 
+-- ── Sub-lists: isolation, viewer/member gates, and cross-list integrity ───
+do $$
+declare
+  a uuid := '00000000-0000-4000-a000-00000000000a';
+  b uuid := '00000000-0000-4000-b000-00000000000b';
+  c uuid := '00000000-0000-4000-c000-00000000000c';
+  hid_a uuid; lid_a uuid; lid_b uuid; sid_a uuid; iid_a uuid; iid_b uuid;
+  n int; blocked boolean;
+begin
+  execute format('set local role %I',
+    coalesce(nullif(current_setting('larder.setup_role', true), ''), current_user));
+  perform set_config('request.jwt.claims', '', true);
+
+  select h.id into hid_a from public.households h where h.name = 'Alpha House';
+  select l.id into lid_a from public.lists l where l.household_id = hid_a and l.is_default;
+  select l.id into lid_b from public.lists l join public.households h on h.id = l.household_id
+   where h.name = 'Bravo House' and l.is_default;
+  select i.id into iid_a from public.items i where i.list_id = lid_a limit 1;
+  select i.id into iid_b from public.items i where i.list_id = lid_b limit 1;
+
+  -- Demote Cara back to viewer for the read-only check.
+  update public.household_members set role = 'viewer' where household_id = hid_a and user_id = c;
+
+  -- Alice creates a dinner sub-list and links an Alpha item.
+  set local role authenticated;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+
+  insert into public.sublists (list_id, name, emoji)
+  values (lid_a, 'Taco Night', '🌮')
+  returning id into sid_a;
+
+  insert into public.sublist_items (sublist_id, item_id, list_id)
+  values (sid_a, iid_a, lid_a);
+
+  -- Bob (evicted from Alpha earlier) sees neither the sub-list nor its links.
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  select count(*) into n from public.sublists where list_id = lid_a;
+  if n <> 0 then raise exception 'FAIL: outsider read % sublists', n; end if;
+  select count(*) into n from public.sublist_items where list_id = lid_a;
+  if n <> 0 then raise exception 'FAIL: outsider read % sublist_items', n; end if;
+
+  -- Cara (viewer) can read both, but cannot create, link, or delete.
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  select count(*) into n from public.sublists where id = sid_a;
+  if n <> 1 then raise exception 'FAIL: viewer could not read sublist'; end if;
+  select count(*) into n from public.sublist_items where sublist_id = sid_a;
+  if n <> 1 then raise exception 'FAIL: viewer could not read sublist_items'; end if;
+
+  blocked := false;
+  begin insert into public.sublists (list_id, name) values (lid_a, 'Viewer Dish');
+  exception when insufficient_privilege then blocked := true; end;
+  if not blocked then raise exception 'FAIL: viewer created a sublist'; end if;
+
+  with del as (delete from public.sublist_items where sublist_id = sid_a returning 1)
+  select count(*) into n from del;
+  if n <> 0 then raise exception 'FAIL: viewer unlinked an item from a sublist'; end if;
+
+  -- Cross-list link (Alpha sublist → Bravo item) must be rejected by trigger/RLS.
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  blocked := false;
+  begin
+    insert into public.sublist_items (sublist_id, item_id, list_id) values (sid_a, iid_b, lid_a);
+  exception when others then
+    blocked := (sqlerrm = 'SUBLIST_ITEM_LIST_MISMATCH' or sqlstate = '42501');
+  end;
+  if not blocked then raise exception 'FAIL: cross-household item linked into sublist'; end if;
+
+  -- Deleting the sub-list keeps the underlying item on the main list.
+  delete from public.sublists where id = sid_a;
+  select count(*) into n from public.items where id = iid_a;
+  if n <> 1 then raise exception 'FAIL: deleting a sublist deleted the main-list item'; end if;
+
+  raise notice 'PASS  sublists: isolated across households, read-only for viewers, safe on delete';
+end;
+$$;
+
 -- ── Structural invariants ──────────────────────────────────────────────────
 do $$
 declare
@@ -602,7 +678,11 @@ begin
   select string_agg(c.relname, ', ') into offender
   from pg_class c join pg_namespace ns on ns.oid = c.relnamespace
   where ns.nspname = 'public' and c.relkind = 'r'
-    and c.relname in ('profiles','households','household_members','lists','items','api_tokens','category_rules')
+    and c.relname in (
+      'profiles','households','household_members','lists','items','api_tokens',
+      'category_rules','purchase_history','join_attempts','push_subscriptions',
+      'sublists','sublist_items'
+    )
     and not c.relrowsecurity;
   if offender is not null then raise exception 'FAIL: RLS not enabled on: %', offender; end if;
 
@@ -617,7 +697,8 @@ begin
   end if;
 
   -- Realtime wiring for every published table.
-  select string_agg(t, ', ') into offender from unnest(array['items','profiles','category_rules']) t
+  select string_agg(t, ', ') into offender
+  from unnest(array['items','profiles','category_rules','sublists','sublist_items']) t
   where not exists (
     select 1 from pg_publication_tables
     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
@@ -628,7 +709,7 @@ begin
     raise exception 'FAIL: items lacks REPLICA IDENTITY FULL';
   end if;
 
-  raise notice 'PASS  RLS on all 7 tables; definers pin search_path; realtime wired';
+  raise notice 'PASS  RLS on all 12 tables; definers pin search_path; realtime wired';
 end;
 $$;
 

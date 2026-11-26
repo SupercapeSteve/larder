@@ -34,5 +34,7 @@ export const qk = {
   members: (householdId: string) => ['members', householdId] as const,
   lists: (householdId: string) => ['lists', householdId] as const,
   items: (listId: string) => ['items', listId] as const,
+  sublists: (listId: string) => ['sublists', listId] as const,
+  sublistLinks: (listId: string) => ['sublist-items', listId] as const,
   tokens: () => ['api-tokens'] as const,
 } as const

@@ -21,7 +21,10 @@ export default defineConfig({
         short_name: 'Groceries',
         description: 'A realtime household grocery list.',
         display: 'standalone',
-        orientation: 'portrait',
+        // `any` rather than `portrait`: locking orientation prevents installed
+        // PWAs on tablets, foldables, ChromeOS and landscape phones from
+        // rotating to fit the device's actual aspect ratio.
+        orientation: 'any',
         theme_color: '#27583c',
         background_color: '#f2f8f4',
         start_url: '/',

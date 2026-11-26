@@ -81,15 +81,20 @@ export function authErrorMessage(error: unknown): string {
  */
 const RPC_MESSAGES: Record<string, string> = {
   INVALID_CODE: 'No household has that code. Check the letters and try again.',
+  TOO_MANY_ATTEMPTS: 'Too many incorrect codes. Wait an hour and try again.',
   NOT_AUTHENTICATED: 'Your session expired. Sign in again.',
   NOT_A_MEMBER: 'You’re not in that household any more.',
   INVALID_NAME: 'Give the household a name first.',
   JOIN_CODE_EXHAUSTED: 'Couldn’t generate a join code. Try again.',
-  NOT_OWNER: 'Only an owner can do that.',
+  NOT_OWNER: 'Only an owner or admin can do that.',
   INVALID_ROLE: 'That isn’t a role Larder recognises.',
   LAST_OWNER: 'A household needs at least one owner. Promote somebody else first.',
   LIST_HOUSEHOLD_IMMUTABLE: 'A list can’t be moved to another household.',
   ITEM_LIST_IMMUTABLE: 'An item can’t be moved to another list.',
+  SUBLIST_LIST_IMMUTABLE: 'A sub-list can’t be moved to another list.',
+  SUBLIST_ITEM_IMMUTABLE: 'That sub-list link can’t be reassigned.',
+  SUBLIST_ITEM_NOT_FOUND: 'That item or sub-list was just removed.',
+  SUBLIST_ITEM_LIST_MISMATCH: 'Items can only be added to sub-lists in the same household.',
 }
 
 export function rpcErrorMessage(error: unknown): string {
@@ -100,7 +105,14 @@ export function rpcErrorMessage(error: unknown): string {
     if (raw.includes(sentinel)) return text
   }
 
-  if (/duplicate key|already exists/i.test(raw)) return 'You’re already in that household.'
+  // PostgREST `.single()` returns PGRST116 when zero rows matched — in Larder
+  // that means either RLS filtered the row out (viewer / evicted) or a
+  // housemate deleted the row a moment earlier.
+  if (e.code === 'PGRST116') {
+    return 'That item could not be updated — you may not have permission, or it was just removed.'
+  }
+
+  if (/duplicate key|already exists/i.test(raw)) return 'That already exists.'
   if (/row-level security|permission denied/i.test(raw)) {
     return 'You don’t have permission to do that.'
   }

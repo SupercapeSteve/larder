@@ -6,8 +6,9 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ErrorBanner, FullPageSpinner, Spinner, TextField } from '@/components/ui'
 import { ErrorState } from '@/components/ErrorState'
 import { useToast } from '@/components/Toast'
-import { useDefaultList } from '@/hooks/useHouseholds'
+import { useDefaultList, useHouseholds } from '@/hooks/useHouseholds'
 import { useApiTokens, useCreateApiToken, useRevokeApiToken } from '@/hooks/useApiTokens'
+import { can } from '@/lib/permissions'
 import { copyToClipboard } from '@/lib/clipboard'
 import { functionsBaseUrl } from '@/lib/env'
 import type { ApiToken } from '@/types/database'
@@ -16,8 +17,12 @@ const ENDPOINT = `${functionsBaseUrl}/siri`
 
 export default function SiriSettings() {
   const { householdId } = useParams<{ householdId: string }>()
+  const householdsQuery = useHouseholds()
   const { list, isPending } = useDefaultList(householdId)
   const { showToast } = useToast()
+
+  const household = householdsQuery.data?.find((h) => h.id === householdId)
+  const canUseSiri = household ? can(household.role, 'useSiri') : true
 
   const tokensQuery = useApiTokens(list?.id)
   const createToken = useCreateApiToken(list?.id ?? '')
@@ -28,7 +33,7 @@ export default function SiriSettings() {
   const [copiedToken, setCopiedToken] = useState(false)
   const [pendingRevoke, setPendingRevoke] = useState<ApiToken | null>(null)
 
-  if (isPending) return <FullPageSpinner label="Loading" />
+  if (isPending || householdsQuery.isPending) return <FullPageSpinner label="Loading" />
   if (!list) {
     return (
       <ErrorState
@@ -111,50 +116,59 @@ export default function SiriSettings() {
         ) : null}
 
         {/* ── Create ────────────────────────────────────────────────────── */}
-        <section className="card p-5" aria-labelledby="new-token-heading">
+        <section className="card p-4 min-[380px]:p-5" aria-labelledby="new-token-heading">
           <h2
             id="new-token-heading"
             className="text-sm font-semibold text-larder-950 dark:text-larder-50"
           >
             New token
           </h2>
-          <p className="mt-1 text-xs text-larder-600 dark:text-larder-400">
-            One per device is tidiest — you can revoke a phone without breaking the others.
-          </p>
+          {canUseSiri ? (
+            <>
+              <p className="mt-1 text-xs text-larder-600 dark:text-larder-400">
+                One per device is tidiest — you can revoke a phone without breaking the others.
+              </p>
 
-          {createToken.isError ? (
-            <div className="mt-3">
-              <ErrorBanner>{(createToken.error as Error).message}</ErrorBanner>
-            </div>
-          ) : null}
+              {createToken.isError ? (
+                <div className="mt-3">
+                  <ErrorBanner>{(createToken.error as Error).message}</ErrorBanner>
+                </div>
+              ) : null}
 
-          <div className="mt-3 flex items-end gap-2">
-            <div className="flex-1">
-              <TextField
-                label="Label"
-                placeholder="Nick's iPhone"
-                maxLength={60}
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-              />
-            </div>
-            <button
-              type="button"
-              disabled={createToken.isPending}
-              className="btn-primary shrink-0 gap-2"
-              onClick={() => {
-                createToken.mutate(label, {
-                  onSuccess: (result) => {
-                    setMinted(result.plaintext)
-                    setLabel('')
-                  },
-                })
-              }}
-            >
-              {createToken.isPending ? <Spinner /> : <Plus className="h-4 w-4" aria-hidden />}
-              Generate
-            </button>
-          </div>
+              <div className="mt-3 flex flex-col gap-2 min-[380px]:flex-row min-[380px]:items-end">
+                <div className="min-w-0 flex-1">
+                  <TextField
+                    label="Label"
+                    placeholder="Nick's iPhone"
+                    maxLength={60}
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={createToken.isPending}
+                  className="btn-primary shrink-0 gap-2"
+                  onClick={() => {
+                    createToken.mutate(label, {
+                      onSuccess: (result) => {
+                        setMinted(result.plaintext)
+                        setLabel('')
+                      },
+                    })
+                  }}
+                >
+                  {createToken.isPending ? <Spinner /> : <Plus className="h-4 w-4" aria-hidden />}
+                  Generate
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="mt-1.5 text-xs text-larder-600 dark:text-larder-400">
+              You have view-only access to this household, so Siri tokens cannot be created for your
+              account here.
+            </p>
+          )}
         </section>
 
         {/* ── Existing tokens ───────────────────────────────────────────── */}

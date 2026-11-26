@@ -34,45 +34,49 @@ export default function App() {
     <AuthProvider>
       <PreferencesProvider>
         <OutboxProvider>
-        <ToastProvider>
-          <a
-            href="#main"
-            className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-xl focus:bg-larder-600 focus:px-4 focus:py-2 focus:text-white"
-          >
-            Skip to content
-          </a>
+          <ToastProvider>
+            <div className="flex h-full min-h-0 w-full flex-col overflow-x-clip">
+              <a
+                href="#main"
+                className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-xl focus:bg-larder-600 focus:px-4 focus:py-2 focus:text-white"
+              >
+                Skip to content
+              </a>
 
-          <AuthLinkLanding />
-          <OfflineBanner />
+              <AuthLinkLanding />
+              <OfflineBanner />
 
-          <Routes>
-            {/* Reachable signed out or signed in: these links establish a
-                session themselves, so gating them either way locks someone out. */}
-            <Route path="/update-password" element={<UpdatePassword />} />
-            <Route path="/confirm" element={<Confirm />} />
+              <div className="min-h-0 flex-1">
+                <Routes>
+                  {/* Reachable signed out or signed in: these links establish a
+                      session themselves, so gating them either way locks someone out. */}
+                  <Route path="/update-password" element={<UpdatePassword />} />
+                  <Route path="/confirm" element={<Confirm />} />
 
-            <Route element={<PublicOnlyRoute />}>
-              <Route path="/signin" element={<SignIn />} />
-              <Route path="/signup" element={<SignUp />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-            </Route>
+                  <Route element={<PublicOnlyRoute />}>
+                    <Route path="/signin" element={<SignIn />} />
+                    <Route path="/signup" element={<SignUp />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                  </Route>
 
-            <Route element={<ProtectedRoute />}>
-              <Route path="/" element={<HouseholdGate />} />
-              <Route path="/setup" element={<Setup />} />
-              <Route path="/households" element={<HouseholdPicker />} />
-              <Route path="/h/:householdId" element={<ListScreen />} />
-              <Route path="/h/:householdId/household" element={<HouseholdDetail />} />
-              <Route path="/h/:householdId/aisles" element={<Aisles />} />
-              <Route path="/h/:householdId/siri" element={<SiriSettings />} />
-              <Route path="/account" element={<Account />} />
-            </Route>
+                  <Route element={<ProtectedRoute />}>
+                    <Route path="/" element={<HouseholdGate />} />
+                    <Route path="/setup" element={<Setup />} />
+                    <Route path="/households" element={<HouseholdPicker />} />
+                    <Route path="/h/:householdId" element={<ListScreen />} />
+                    <Route path="/h/:householdId/household" element={<HouseholdDetail />} />
+                    <Route path="/h/:householdId/aisles" element={<Aisles />} />
+                    <Route path="/h/:householdId/siri" element={<SiriSettings />} />
+                    <Route path="/account" element={<Account />} />
+                  </Route>
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </div>
 
-          <InstallHint />
-        </ToastProvider>
+              <InstallHint />
+            </div>
+          </ToastProvider>
         </OutboxProvider>
       </PreferencesProvider>
     </AuthProvider>

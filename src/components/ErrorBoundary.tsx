@@ -25,53 +25,59 @@ export class ErrorBoundary extends Component<Props, State> {
     if (!error) return this.props.children
 
     return (
-      <div className="safe-top safe-bottom safe-x flex min-h-full flex-col items-center justify-center bg-larder-50 px-6 py-10 text-center dark:bg-larder-950">
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300">
-          <AlertTriangle className="h-6 w-6" aria-hidden />
-        </div>
+      <div className="scroll-y safe-top safe-bottom safe-x flex h-full w-full flex-col bg-larder-50 px-4 py-6 text-center sm:px-6 sm:py-10 dark:bg-larder-950">
+        <div className="mx-auto my-auto flex w-full max-w-md flex-col items-center">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300">
+            <AlertTriangle className="h-6 w-6" aria-hidden />
+          </div>
 
-        <h1 className="text-lg font-semibold text-larder-950 dark:text-larder-50">
-          Larder hit a snag
-        </h1>
+          <h1 className="text-lg font-semibold text-larder-950 dark:text-larder-50">
+            Larder hit a snag
+          </h1>
 
-        <p className="mt-2 max-w-md text-sm text-larder-600 dark:text-larder-400">
-          Something in the app crashed. Reloading usually clears it — your list is safe on the
-          server.
-        </p>
+          <p className="mt-2 text-sm text-larder-600 dark:text-larder-400">
+            Something in the app crashed. Reloading usually clears it — your list is safe on the
+            server.
+          </p>
 
-        <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-          <button type="button" className="btn-primary" onClick={() => this.setState({ error: null })}>
-            Try again
-          </button>
+          <div className="mt-6 flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => this.setState({ error: null })}
+            >
+              Try again
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => window.location.assign('/')}
+            >
+              Back to the list
+            </button>
+          </div>
+
           <button
             type="button"
-            className="btn-secondary"
-            onClick={() => window.location.assign('/')}
+            className="btn-ghost mt-3 gap-2 text-sm"
+            onClick={() => {
+              void copyDiagnostics(error).then((ok) => {
+                this.setState({ copied: ok })
+                setTimeout(() => this.setState({ copied: false }), 2500)
+              })
+            }}
           >
-            Back to the list
+            <ClipboardCopy className="h-4 w-4" aria-hidden />
+            {this.state.copied ? 'Copied' : 'Copy diagnostics'}
           </button>
+
+          <details className="mt-6 w-full text-left">
+            <summary className="cursor-pointer text-xs text-larder-500">Technical detail</summary>
+            <pre className="mt-2 overflow-x-auto rounded-lg bg-larder-100 p-3 text-left text-[11px] text-larder-700 dark:bg-larder-900 dark:text-larder-300">
+              {error.message}
+            </pre>
+          </details>
         </div>
-
-        <button
-          type="button"
-          className="btn-ghost mt-3 gap-2 text-sm"
-          onClick={() => {
-            void copyDiagnostics(error).then((ok) => {
-              this.setState({ copied: ok })
-              setTimeout(() => this.setState({ copied: false }), 2500)
-            })
-          }}
-        >
-          <ClipboardCopy className="h-4 w-4" aria-hidden />
-          {this.state.copied ? 'Copied' : 'Copy diagnostics'}
-        </button>
-
-        <details className="mt-6 max-w-md text-left">
-          <summary className="cursor-pointer text-xs text-larder-500">Technical detail</summary>
-          <pre className="mt-2 overflow-x-auto rounded-lg bg-larder-100 p-3 text-left text-[11px] text-larder-700 dark:bg-larder-900 dark:text-larder-300">
-            {error.message}
-          </pre>
-        </details>
       </div>
     )
   }

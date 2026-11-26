@@ -2,11 +2,19 @@
  * Larder — push sender.
  *
  *   POST /functions/v1/notify
- *   { "list_id": "...", "actor_id": "...", "title": "...", "body": "..." }
+ *   Authorization: Bearer <user JWT | service_role key>
+ *   { "list_id": "...", "title": "...", "body": "...", "url": "/h/..." }
  *
  * Fans a notification out to every household member except the person who
- * caused it. Runs on the service role, so it re-derives the household from the
- * list rather than trusting anything in the request body beyond the ids.
+ * caused it.
+ *
+ * Security boundary (hardened by Carbon):
+ *  - Never trust `actor_id` or an external `url` from an untrusted body.
+ *  - Authenticate the caller's JWT (or verify the platform service-role key for
+ *    Siri-originated calls), derive the actor from that identity, and confirm
+ *    the actor holds write access (`owner`, `admin` or `member`) on the
+ *    household that owns `list_id`. Otherwise any signed-in user on the
+ *    project could push arbitrary text and phishing links to strangers.
  *
  * Requires two secrets, set with `supabase secrets set`:
  *   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY
@@ -26,6 +34,23 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
   })
+}
+
+function bearerToken(request: Request): string | null {
+  const header = request.headers.get('Authorization') ?? request.headers.get('authorization')
+  if (!header) return null
+  const match = /^Bearer\s+(.+)$/i.exec(header.trim())
+  return match && match[1].trim().length > 0 ? match[1].trim() : null
+}
+
+/** Same-origin relative path only — never an external URL or protocol-relative `//`. */
+function safePath(candidate: string | undefined, fallback: string): string {
+  if (!candidate) return fallback
+  const trimmed = candidate.trim()
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//') || trimmed.includes('\\')) {
+    return fallback
+  }
+  return trimmed.slice(0, 200)
 }
 
 type Body = {
@@ -48,9 +73,12 @@ Deno.serve(async (request: Request): Promise<Response> => {
   const vapidPrivate = Deno.env.get('VAPID_PRIVATE_KEY')
 
   if (!supabaseUrl || !serviceRoleKey || !vapidPublic || !vapidPrivate) {
-    console.error('notify: missing environment')
-    return json({ ok: false, error: 'not configured' }, 500)
+    // Push is optional on self-hosted instances; fail quietly when unconfigured.
+    return json({ ok: false, error: 'not configured' }, 503)
   }
+
+  const token = bearerToken(request)
+  if (!token) return json({ ok: false, error: 'unauthorized' }, 401)
 
   let body: Body
   try {
@@ -59,13 +87,30 @@ Deno.serve(async (request: Request): Promise<Response> => {
     return json({ ok: false, error: 'bad json' }, 400)
   }
 
-  if (!body.list_id) return json({ ok: false, error: 'list_id required' }, 400)
+  if (!body.list_id || typeof body.list_id !== 'string') {
+    return json({ ok: false, error: 'list_id required' }, 400)
+  }
 
   const db = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
 
-  // Derive the audience from the list, never from the caller.
+  // Resolve who is calling. Only the internal Siri function may name an
+  // actor_id directly, and only by presenting the service-role key itself.
+  let actorId: string | null = null
+  if (token === serviceRoleKey) {
+    actorId = typeof body.actor_id === 'string' ? body.actor_id : null
+  } else {
+    const { data: userData, error: userError } = await db.auth.getUser(token)
+    if (userError || !userData.user) {
+      return json({ ok: false, error: 'unauthorized' }, 401)
+    }
+    actorId = userData.user.id
+  }
+
+  if (!actorId) return json({ ok: false, error: 'actor required' }, 401)
+
+  // Derive the household from the list, never from the caller.
   const { data: list } = await db
     .from('lists')
     .select('household_id')
@@ -73,15 +118,20 @@ Deno.serve(async (request: Request): Promise<Response> => {
     .maybeSingle()
   if (!list) return json({ ok: false, error: 'unknown list' }, 404)
 
+  const householdId = (list as { household_id: string }).household_id
+
   const { data: members } = await db
     .from('household_members')
-    .select('user_id')
-    .eq('household_id', (list as { household_id: string }).household_id)
+    .select('user_id, role')
+    .eq('household_id', householdId)
 
-  const recipients = (members ?? [])
-    .map((m) => (m as { user_id: string }).user_id)
-    .filter((id) => id !== body.actor_id)
+  const roster = (members ?? []) as Array<{ user_id: string; role: string }>
+  const callerMembership = roster.find((m) => m.user_id === actorId)
+  if (!callerMembership || callerMembership.role === 'viewer') {
+    return json({ ok: false, error: 'forbidden' }, 403)
+  }
 
+  const recipients = roster.map((m) => m.user_id).filter((id) => id !== actorId)
   if (recipients.length === 0) return json({ ok: true, sent: 0 })
 
   const { data: subscriptions } = await db
@@ -93,10 +143,19 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
   webpush.setVapidDetails('mailto:larder@example.com', vapidPublic, vapidPrivate)
 
+  const title = (typeof body.title === 'string' && body.title.trim().length > 0
+    ? body.title.trim()
+    : 'Larder'
+  ).slice(0, 60)
+  const message = (typeof body.body === 'string' && body.body.trim().length > 0
+    ? body.body.trim()
+    : 'Your list changed.'
+  ).slice(0, 180)
+
   const payload = JSON.stringify({
-    title: body.title ?? 'Larder',
-    body: body.body ?? 'Your list changed.',
-    url: body.url ?? '/',
+    title,
+    body: message,
+    url: safePath(body.url, `/h/${householdId}`),
     tag: 'larder-list',
   })
 

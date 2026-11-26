@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -83,7 +83,7 @@ export default function HouseholdDetail() {
       setTimeout(() => setCopied(false), 2000)
       showToast({ message: 'Join code copied.' })
     } else {
-      showToast({ message: 'Couldnâ€™t copy â€” read it out instead.', tone: 'error' })
+      showToast({ message: 'Couldn’t copy — read it out instead.', tone: 'error' })
     }
   }
 
@@ -119,147 +119,157 @@ export default function HouseholdDetail() {
         </div>
       }
     >
-      <div className="space-y-6 py-4 pb-12">
-        <NameSection
-          householdId={household.id}
-          name={household.name}
-          canEdit={can(myRole, 'renameHousehold')}
-        />
+      <div className="space-y-6 py-4 pb-12 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0">
+        <div className="space-y-6">
+          <NameSection
+            householdId={household.id}
+            name={household.name}
+            canEdit={can(myRole, 'renameHousehold')}
+          />
 
-        {/* â”€â”€ Join code â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        <SettingsSection
-          title="Invite code"
-          description="Read it out or send it over. No ambiguous letters â€” there's no O, I, L, 0 or 1 in a Larder code."
-        >
-          <div className="px-4 py-4">
-            <div className="flex items-center gap-3">
-              <output
-                className="flex-1 rounded-xl bg-larder-100 py-3 text-center font-mono text-2xl font-semibold tracking-[0.3em] text-larder-900 dark:bg-larder-950 dark:text-larder-50"
-                aria-label={`Join code ${household.join_code.split('').join(' ')}`}
-              >
-                {household.join_code}
-              </output>
-              <button
-                type="button"
-                onClick={onCopyCode}
-                className="btn-secondary shrink-0 gap-2"
-                aria-label="Copy join code"
-              >
-                {copied ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
-                {copied ? 'Copied' : 'Copy'}
-              </button>
-            </div>
-
-            {can(myRole, 'rotateCode') ? (
-              <button
-                type="button"
-                onClick={() => setConfirmRegenerate(true)}
-                disabled={regenerateCode.isPending}
-                className="btn-ghost mt-3 w-full gap-2 text-sm"
-              >
-                {regenerateCode.isPending ? <Spinner /> : <RefreshCw className="h-4 w-4" aria-hidden />}
-                Generate a new code
-              </button>
-            ) : null}
-          </div>
-        </SettingsSection>
-
-        {/* â”€â”€ Members â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        <SettingsSection
-          title={`${members.length} ${members.length === 1 ? 'member' : 'members'}`}
-          description={
-            isOwner
-              ? 'Tap the shield to change what somebody can do.'
-              : `You're ${myRole === 'admin' ? 'an' : 'a'} ${ROLE_LABEL[myRole].toLowerCase()} here — ${ROLE_SUMMARY[myRole].toLowerCase()}.`
-          }
-        >
-          {members.map((member) => (
-            <div key={member.userId} className="flex items-center gap-3 px-4 py-3">
-              <Avatar
-                userId={member.userId}
-                displayName={member.displayName}
-                emoji={member.avatarEmoji}
-                color={member.avatarColor}
-                imageUrl={member.avatarUrl}
-                size="md"
-              />
-
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-larder-950 dark:text-larder-50">
-                  {member.displayName}
-                  {member.isYou ? <span className="text-larder-500"> (you)</span> : null}
-                </span>
-                <span className="mt-0.5 flex items-center gap-1 text-xs text-larder-600 dark:text-larder-400">
-                  {member.role === 'owner' ? <Crown className="h-3 w-3" aria-hidden /> : null}
-                  {ROLE_LABEL[member.role]}
-                  <span className="text-larder-400">Â· {ROLE_SUMMARY[member.role]}</span>
-                </span>
-              </span>
-
-              <div className="flex shrink-0 items-center gap-1">
-                {isOwner ? (
+          {/* ── Join code ─────────────────────────────────────────────────── */}
+          {can(myRole, 'seeCode') ? (
+            <SettingsSection
+              title="Invite code"
+              description="Read it out or send it over. No ambiguous letters — there's no O, I, L, 0 or 1 in a Larder code."
+            >
+              <div className="px-4 py-4">
+                <div className="flex flex-wrap items-center gap-2 min-[360px]:gap-3">
+                  <output
+                    className="min-w-[8.5rem] flex-1 rounded-xl bg-larder-100 py-3 text-center font-mono text-xl font-semibold tracking-[0.22em] text-larder-900 min-[360px]:text-2xl min-[360px]:tracking-[0.3em] dark:bg-larder-950 dark:text-larder-50"
+                    aria-label={`Join code ${household.join_code.split('').join(' ')}`}
+                  >
+                    {household.join_code}
+                  </output>
                   <button
                     type="button"
-                    onClick={() => setEditingRole(member)}
-                    className="tap rounded-xl text-larder-600 dark:text-larder-400"
-                    aria-label={`Change ${member.displayName}'s role`}
-                    title="Change role"
+                    onClick={onCopyCode}
+                    className="btn-secondary shrink-0 gap-2"
+                    aria-label="Copy join code"
                   >
-                    <ShieldCheck className="h-5 w-5" aria-hidden />
+                    {copied ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
+                    {copied ? 'Copied' : 'Copy'}
                   </button>
-                ) : null}
+                </div>
 
-                {canManage && !member.isYou && canActOn(myRole, member.role) ? (
+                {can(myRole, 'rotateCode') ? (
                   <button
                     type="button"
-                    onClick={() => setPendingRemoval(member)}
-                    className="tap rounded-xl text-red-600 dark:text-red-400"
-                    aria-label={`Remove ${member.displayName}`}
+                    onClick={() => setConfirmRegenerate(true)}
+                    disabled={regenerateCode.isPending}
+                    className="btn-ghost mt-3 w-full gap-2 text-sm"
                   >
-                    <UserMinus className="h-5 w-5" aria-hidden />
+                    {regenerateCode.isPending ? <Spinner /> : <RefreshCw className="h-4 w-4" aria-hidden />}
+                    Generate a new code
                   </button>
                 ) : null}
               </div>
-            </div>
-          ))}
-        </SettingsSection>
+            </SettingsSection>
+          ) : null}
 
-        <Link to={`/h/${household.id}/aisles`} className="card flex items-center gap-3 px-4 py-4">
-          <LayoutList className="h-5 w-5 shrink-0 text-larder-600 dark:text-larder-400" aria-hidden />
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span className="text-sm font-medium text-larder-950 dark:text-larder-50">Aisles</span>
-            <span className="text-xs text-larder-600 dark:text-larder-400">
-              See what's in each aisle and correct it
-            </span>
-          </span>
-        </Link>
+          <div className="space-y-3">
+            <Link to={`/h/${household.id}/aisles`} className="card flex items-center gap-3 px-4 py-4">
+              <LayoutList className="h-5 w-5 shrink-0 text-larder-600 dark:text-larder-400" aria-hidden />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="text-sm font-medium text-larder-950 dark:text-larder-50">Aisles</span>
+                <span className="text-xs text-larder-600 dark:text-larder-400">
+                  See what's in each aisle and correct it
+                </span>
+              </span>
+            </Link>
 
-        <Link to={`/h/${household.id}/siri`} className="card flex items-center gap-3 px-4 py-4">
-          <Mic className="h-5 w-5 shrink-0 text-larder-600 dark:text-larder-400" aria-hidden />
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span className="text-sm font-medium text-larder-950 dark:text-larder-50">
-              Siri &amp; Shortcuts
-            </span>
-            <span className="text-xs text-larder-600 dark:text-larder-400">
-              Add to the list by voice
-            </span>
-          </span>
-        </Link>
+            <Link to={`/h/${household.id}/siri`} className="card flex items-center gap-3 px-4 py-4">
+              <Mic className="h-5 w-5 shrink-0 text-larder-600 dark:text-larder-400" aria-hidden />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="text-sm font-medium text-larder-950 dark:text-larder-50">
+                  Siri &amp; Shortcuts
+                </span>
+                <span className="text-xs text-larder-600 dark:text-larder-400">
+                  Add to the list by voice
+                </span>
+              </span>
+            </Link>
+          </div>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => setConfirmLeave(true)}
-          className="btn-ghost w-full gap-2 text-red-600 dark:text-red-400"
-        >
-          <DoorOpen className="h-4 w-4" aria-hidden />
-          Leave this household
-        </button>
+        {/* ── Members ───────────────────────────────────────────────────── */}
+        <div className="space-y-6">
+          <SettingsSection
+            title={`${members.length} ${members.length === 1 ? 'member' : 'members'}`}
+            description={
+              isOwner
+                ? 'Tap the shield to change what somebody can do.'
+                : `You're ${myRole === 'admin' ? 'an' : 'a'} ${ROLE_LABEL[myRole].toLowerCase()} here — ${ROLE_SUMMARY[myRole].toLowerCase()}.`
+            }
+          >
+            {members.map((member) => (
+              <div key={member.userId} className="flex items-center gap-3 px-4 py-3">
+                <Avatar
+                  userId={member.userId}
+                  displayName={member.displayName}
+                  emoji={member.avatarEmoji}
+                  color={member.avatarColor}
+                  imageUrl={member.avatarUrl}
+                  size="md"
+                />
+
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-larder-950 dark:text-larder-50">
+                    {member.displayName}
+                    {member.isYou ? <span className="text-larder-500"> (you)</span> : null}
+                  </span>
+                  <span className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-larder-600 dark:text-larder-400">
+                    <span className="inline-flex items-center gap-1 font-medium">
+                      {member.role === 'owner' ? <Crown className="h-3 w-3 shrink-0" aria-hidden /> : null}
+                      {ROLE_LABEL[member.role]}
+                    </span>
+                    <span className="text-larder-400">· {ROLE_SUMMARY[member.role]}</span>
+                  </span>
+                </span>
+
+                <div className="flex shrink-0 items-center gap-1">
+                  {isOwner ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditingRole(member)}
+                      className="tap rounded-xl text-larder-600 dark:text-larder-400"
+                      aria-label={`Change ${member.displayName}'s role`}
+                      title="Change role"
+                    >
+                      <ShieldCheck className="h-5 w-5" aria-hidden />
+                    </button>
+                  ) : null}
+
+                  {canManage && !member.isYou && canActOn(myRole, member.role) ? (
+                    <button
+                      type="button"
+                      onClick={() => setPendingRemoval(member)}
+                      className="tap rounded-xl text-red-600 dark:text-red-400"
+                      aria-label={`Remove ${member.displayName}`}
+                    >
+                      <UserMinus className="h-5 w-5" aria-hidden />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </SettingsSection>
+
+          <button
+            type="button"
+            onClick={() => setConfirmLeave(true)}
+            className="btn-ghost w-full gap-2 text-red-600 dark:text-red-400"
+          >
+            <DoorOpen className="h-4 w-4" aria-hidden />
+            Leave this household
+          </button>
+        </div>
       </div>
 
       <ConfirmDialog
         open={confirmRegenerate}
         title="Generate a new invite code?"
-        body="The current code stops working immediately. Anyone already in the household stays in â€” they just can't re-share the old code."
+        body="The current code stops working immediately. Anyone already in the household stays in — they just can't re-share the old code."
         confirmLabel="Generate"
         onCancel={() => setConfirmRegenerate(false)}
         onConfirm={() => {
@@ -334,7 +344,7 @@ export default function HouseholdDetail() {
   )
 }
 
-/* â”€â”€ Household name â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Household name ───────────────────────────────────────────────────────── */
 
 function NameSection({
   householdId,
@@ -414,7 +424,7 @@ function NameSection({
               Edit
             </button>
           ) : (
-            <span className="shrink-0 text-xs text-larder-500">Owners only</span>
+            <span className="shrink-0 text-xs text-larder-500">Admins only</span>
           )}
         </div>
       )}

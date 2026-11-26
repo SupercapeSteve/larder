@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { X } from 'lucide-react'
+import { useKeyboardInset } from '@/hooks/useKeyboardInset'
 
 export type ToastAction = {
   label: string
@@ -38,6 +39,7 @@ let nextId = 1
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<Toast | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const keyboardInset = useKeyboardInset()
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -73,23 +75,33 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       {toast ? (
         <div
-          className="safe-bottom pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-4"
+          className="safe-x pointer-events-none fixed inset-x-0 z-50 flex justify-center px-3 pb-3 sm:px-4 sm:pb-4"
+          style={{
+            // Float above the iOS keyboard when open, and above the sticky add
+            // bar + home indicator when closed so rapid item entry isn't covered.
+            bottom:
+              keyboardInset > 0
+                ? `${keyboardInset + 64}px`
+                : 'calc(var(--sa-bottom) + 4.25rem)',
+          }}
           role="status"
           aria-live="polite"
         >
           <div
-            className={`animate-toast-in pointer-events-auto flex w-full max-w-md items-center gap-2 rounded-2xl px-4 py-3 shadow-lg ${
+            className={`animate-toast-in pointer-events-auto flex w-full max-w-md items-center gap-2 rounded-2xl px-3.5 py-2.5 shadow-lg sm:px-4 sm:py-3 ${
               toast.tone === 'error'
                 ? 'bg-red-700 text-white'
                 : 'bg-larder-900 text-larder-50 dark:bg-larder-100 dark:text-larder-950'
             }`}
           >
-            <span className="min-w-0 flex-1 truncate text-sm">{toast.message}</span>
+            <span className="min-w-0 flex-1 break-words text-sm leading-snug">
+              {toast.message}
+            </span>
 
             {toast.action ? (
               <button
                 type="button"
-                className="tap shrink-0 rounded-lg px-3 text-sm font-semibold underline underline-offset-2"
+                className="tap shrink-0 rounded-lg px-2.5 text-sm font-semibold underline underline-offset-2"
                 onClick={() => {
                   const act = toast.action?.onAct
                   dismissToast()
@@ -102,7 +114,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
             <button
               type="button"
-              className="tap shrink-0 rounded-lg opacity-70 hover:opacity-100"
+              className="tap -mr-1 shrink-0 rounded-lg opacity-70 hover:opacity-100"
               onClick={dismissToast}
               aria-label="Dismiss"
             >

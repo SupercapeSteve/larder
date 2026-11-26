@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { Check, MoreHorizontal, Trash2 } from 'lucide-react'
 import { useHaptic, usePreferences } from '@/hooks/usePreferences'
 import { Avatar } from '@/components/Avatar'
-import type { Item } from '@/types/database'
+import { DEFAULT_SUBLIST_EMOJI } from '@/lib/sublists'
+import type { Item, Sublist } from '@/types/database'
 
 const SWIPE_TRIGGER_PX = 96
 const SWIPE_SOFT_MAX_PX = 132
@@ -20,11 +21,16 @@ export type RowMember = {
 
 type ItemRowProps = {
   item: Item
+  /** Sub-lists this item belongs to, excluding any active sub-list filter. */
+  sublists?: readonly Sublist[]
   /** Resolves a user id to who they are — used for "who added / who checked". */
   memberFor: (userId: string | null) => RowMember | null
+  canCheck?: boolean
+  canEdit?: boolean
   onToggle: (item: Item) => void
   onEdit: (item: Item) => void
   onDelete: (item: Item) => void
+  onSelectSublist?: (sublistId: string) => void
 }
 
 /** Rubber-band resistance past the trigger point, so the row never runs away. */
@@ -36,7 +42,17 @@ function damped(dx: number): number {
   return -Math.min(resisted, SWIPE_SOFT_MAX_PX)
 }
 
-export function ItemRow({ item, memberFor, onToggle, onEdit, onDelete }: ItemRowProps) {
+export function ItemRow({
+  item,
+  sublists = [],
+  memberFor,
+  canCheck = true,
+  canEdit = true,
+  onToggle,
+  onEdit,
+  onDelete,
+  onSelectSublist,
+}: ItemRowProps) {
   const { preferences } = usePreferences()
   const haptic = useHaptic()
 
@@ -72,6 +88,7 @@ export function ItemRow({ item, memberFor, onToggle, onEdit, onDelete }: ItemRow
 
   function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return
+    if (!canCheck && !canEdit) return
 
     // Presses that land on a real control belong to that control. Without this
     // the row's own tap handler fires *as well as* the button's onClick — the
@@ -89,13 +106,15 @@ export function ItemRow({ item, memberFor, onToggle, onEdit, onDelete }: ItemRow
     setPressed(true)
     event.currentTarget.setPointerCapture(event.pointerId)
 
-    longPressTimer.current = setTimeout(() => {
-      gestureHandled.current = true
-      longPressTimer.current = null
-      setPressed(false)
-      haptic(12)
-      onEdit(item)
-    }, LONG_PRESS_MS)
+    if (canEdit) {
+      longPressTimer.current = setTimeout(() => {
+        gestureHandled.current = true
+        longPressTimer.current = null
+        setPressed(false)
+        haptic(12)
+        onEdit(item)
+      }, LONG_PRESS_MS)
+    }
   }
 
   function onPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
@@ -108,6 +127,7 @@ export function ItemRow({ item, memberFor, onToggle, onEdit, onDelete }: ItemRow
       setPressed(false)
     }
 
+    if (!canEdit) return
     // Vertical intent belongs to the scroller, not to us.
     if (Math.abs(dy) > Math.abs(dx)) return
     // Swipes beginning at the screen edge are the system back gesture.
@@ -145,7 +165,7 @@ export function ItemRow({ item, memberFor, onToggle, onEdit, onDelete }: ItemRow
     const wasSwiping = swiping
     setSwiping(false)
 
-    if (Math.abs(offset) >= SWIPE_TRIGGER_PX) {
+    if (canEdit && Math.abs(offset) >= SWIPE_TRIGGER_PX) {
       // Let it finish sliding out rather than vanishing mid-gesture.
       setOffset(-SWIPE_SOFT_MAX_PX)
       onDelete(item)
@@ -153,7 +173,7 @@ export function ItemRow({ item, memberFor, onToggle, onEdit, onDelete }: ItemRow
     }
     setOffset(0)
 
-    if (gestureHandled.current || wasSwiping) return
+    if (gestureHandled.current || wasSwiping || !canCheck) return
 
     const dx = Math.abs(event.clientX - origin.x)
     const dy = Math.abs(event.clientY - origin.y)
@@ -187,33 +207,37 @@ export function ItemRow({ item, memberFor, onToggle, onEdit, onDelete }: ItemRow
   const progress = Math.min(1, Math.abs(offset) / SWIPE_TRIGGER_PX)
   const willDelete = Math.abs(offset) >= SWIPE_TRIGGER_PX
 
+  const hasMeta = Boolean(item.note || attribution || item.source === 'siri' || sublists.length > 0)
+
   return (
     <li className="animate-row-in relative overflow-hidden">
       {/* Revealed behind the row as it slides away. */}
-      <div
-        aria-hidden
-        className="absolute inset-y-0 right-0 flex items-center justify-center transition-colors"
-        style={{
-          width: SWIPE_SOFT_MAX_PX,
-          backgroundColor: willDelete ? '#dc2626' : '#b91c1c',
-          opacity: progress,
-        }}
-      >
-        <Trash2
-          className="h-5 w-5 text-white transition-transform"
-          style={{ transform: `scale(${0.8 + progress * 0.35})` }}
+      {canEdit ? (
+        <div
           aria-hidden
-        />
-      </div>
+          className="absolute inset-y-0 right-0 flex items-center justify-center transition-colors"
+          style={{
+            width: SWIPE_SOFT_MAX_PX,
+            backgroundColor: willDelete ? '#dc2626' : '#b91c1c',
+            opacity: progress,
+          }}
+        >
+          <Trash2
+            className="h-5 w-5 text-white transition-transform"
+            style={{ transform: `scale(${0.8 + progress * 0.35})` }}
+            aria-hidden
+          />
+        </div>
+      ) : null}
 
       <div
         role="group"
-        className={`pressable relative flex touch-pan-y items-center gap-3 ${
+        className={`pressable relative flex touch-pan-y items-center gap-2 min-[360px]:gap-3 ${
           pressed ? 'bg-larder-100 dark:bg-larder-800' : 'bg-white dark:bg-larder-900'
         }`}
         style={{
           paddingLeft: 12,
-          paddingRight: 12,
+          paddingRight: canEdit ? 8 : 12,
           transform: `translateX(${offset}px)`,
           transition: swiping ? 'none' : 'transform 260ms cubic-bezier(0.16, 1, 0.3, 1)',
         }}
@@ -224,14 +248,16 @@ export function ItemRow({ item, memberFor, onToggle, onEdit, onDelete }: ItemRow
       >
         <button
           type="button"
+          disabled={!canCheck}
           onClick={(event) => {
             event.stopPropagation()
+            if (!canCheck) return
             haptic(8)
             onToggle(item)
           }}
           aria-pressed={item.checked}
           aria-label={`${item.checked ? 'Uncheck' : 'Check off'} ${item.name}`}
-          className="tap -ml-1 shrink-0 rounded-xl"
+          className="tap -ml-1.5 shrink-0 rounded-xl disabled:opacity-60"
         >
           <span
             aria-hidden
@@ -256,12 +282,11 @@ export function ItemRow({ item, memberFor, onToggle, onEdit, onDelete }: ItemRow
           </span>
         </button>
 
-        <span className="flex min-h-[52px] min-w-0 flex-1 flex-col justify-center py-2">
-          <span className="flex items-baseline gap-2">
+        <span className="flex min-h-[50px] min-w-0 flex-1 flex-col justify-center py-2">
+          <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span
-              className="min-w-0 truncate text-[15px]"
+              className="min-w-0 max-w-full break-words text-[0.9375rem] leading-snug"
               style={{
-                color: item.checked ? undefined : undefined,
                 transition: 'opacity 160ms ease',
                 opacity: item.checked ? 0.45 : 1,
                 textDecoration: item.checked ? 'line-through' : 'none',
@@ -270,18 +295,44 @@ export function ItemRow({ item, memberFor, onToggle, onEdit, onDelete }: ItemRow
               {item.name}
             </span>
             {item.quantity ? (
-              <span className="shrink-0 rounded-md bg-larder-100 px-1.5 py-0.5 text-xs font-medium text-larder-700 dark:bg-larder-800 dark:text-larder-300">
+              <span className="max-w-full truncate rounded-md bg-larder-100 px-1.5 py-0.5 text-xs font-medium text-larder-700 dark:bg-larder-800 dark:text-larder-300">
                 {item.quantity}
               </span>
             ) : null}
           </span>
 
-          {item.note || attribution ? (
-            <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-larder-500 dark:text-larder-400">
-              {item.note ? <span className="truncate">{item.note}</span> : null}
+          {hasMeta ? (
+            <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-larder-500 dark:text-larder-400">
+              {sublists.map((sub) =>
+                onSelectSublist ? (
+                  <button
+                    key={sub.id}
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onSelectSublist(sub.id)
+                    }}
+                    title={`View sub-list: ${sub.name}`}
+                    className="inline-flex max-w-[11rem] items-center gap-1 rounded-md bg-larder-100/90 px-1.5 py-0.5 text-[11px] font-medium text-larder-700 hover:bg-larder-200 dark:bg-larder-800 dark:text-larder-200 dark:hover:bg-larder-700"
+                  >
+                    <span aria-hidden>{sub.emoji ?? DEFAULT_SUBLIST_EMOJI}</span>
+                    <span className="truncate">{sub.name}</span>
+                  </button>
+                ) : (
+                  <span
+                    key={sub.id}
+                    className="inline-flex max-w-[11rem] items-center gap-1 rounded-md bg-larder-100/90 px-1.5 py-0.5 text-[11px] font-medium text-larder-700 dark:bg-larder-800 dark:text-larder-200"
+                  >
+                    <span aria-hidden>{sub.emoji ?? DEFAULT_SUBLIST_EMOJI}</span>
+                    <span className="truncate">{sub.name}</span>
+                  </span>
+                ),
+              )}
+
+              {item.note ? <span className="min-w-0 truncate">{item.note}</span> : null}
               {item.note && attribution ? <span aria-hidden>·</span> : null}
               {attribution ? (
-                <span className="flex shrink-0 items-center gap-1">
+                <span className="inline-flex min-w-0 max-w-full items-center gap-1">
                   <Avatar
                     userId={actorId}
                     displayName={actor?.displayName ?? null}
@@ -290,7 +341,7 @@ export function ItemRow({ item, memberFor, onToggle, onEdit, onDelete }: ItemRow
                     imageUrl={actor?.avatarUrl ?? null}
                     size="xs"
                   />
-                  {attribution}
+                  <span className="truncate">{attribution}</span>
                 </span>
               ) : null}
               {item.source === 'siri' ? (
@@ -302,17 +353,19 @@ export function ItemRow({ item, memberFor, onToggle, onEdit, onDelete }: ItemRow
           ) : null}
         </span>
 
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation()
-            onEdit(item)
-          }}
-          aria-label={`Edit ${item.name}`}
-          className="tap shrink-0 rounded-xl text-larder-400"
-        >
-          <MoreHorizontal className="h-5 w-5" aria-hidden />
-        </button>
+        {canEdit ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              onEdit(item)
+            }}
+            aria-label={`Edit ${item.name}`}
+            className="tap shrink-0 rounded-xl text-larder-400"
+          >
+            <MoreHorizontal className="h-5 w-5" aria-hidden />
+          </button>
+        ) : null}
       </div>
     </li>
   )

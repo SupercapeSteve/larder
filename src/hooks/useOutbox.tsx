@@ -20,7 +20,12 @@ const OutboxContext = createContext<OutboxContextValue | null>(null)
 
 async function send(op: OutboxOp): Promise<{ ok: true } | { ok: false; fatal: boolean }> {
   if (op.kind === 'insert') {
-    const { error } = await supabase.from(op.table).insert(op.payload)
+    const { error } =
+      op.table === 'items'
+        ? await supabase.from('items').insert(op.payload)
+        : op.table === 'sublists'
+          ? await supabase.from('sublists').insert(op.payload)
+          : await supabase.from('sublist_items').insert(op.payload)
     // 23505 = the row already landed on an earlier attempt. Treat as success:
     // ids are client-generated, so a duplicate means the write got through.
     if (!error || error.code === '23505') return { ok: true }
@@ -28,23 +33,52 @@ async function send(op: OutboxOp): Promise<{ ok: true } | { ok: false; fatal: bo
   }
 
   if (op.kind === 'update') {
-    const { error } = await supabase.from(op.table).update(op.payload).eq('id', op.id)
+    const { error } =
+      op.table === 'items'
+        ? await supabase.from('items').update(op.payload).eq('id', op.id)
+        : await supabase.from('sublists').update(op.payload).eq('id', op.id)
     if (!error) return { ok: true }
     return { ok: false, fatal: isFatal(error.code) }
   }
 
-  const { error } = await supabase.from(op.table).delete().eq('id', op.id)
+  if (op.kind === 'delete-many') {
+    if (op.ids.length === 0) return { ok: true }
+    const { error } = await supabase.from('items').delete().in('id', op.ids)
+    if (!error) return { ok: true }
+    return { ok: false, fatal: isFatal(error.code) }
+  }
+
+  if (op.kind === 'delete-link') {
+    const { error } = await supabase
+      .from('sublist_items')
+      .delete()
+      .eq('sublist_id', op.sublist_id)
+      .eq('item_id', op.item_id)
+    if (!error) return { ok: true }
+    return { ok: false, fatal: isFatal(error.code) }
+  }
+
+  const { error } =
+    op.table === 'items'
+      ? await supabase.from('items').delete().eq('id', op.id)
+      : await supabase.from('sublists').delete().eq('id', op.id)
   if (!error) return { ok: true }
   return { ok: false, fatal: isFatal(error.code) }
 }
 
 /**
- * A permission or constraint failure will never succeed on retry — dropping it
- * is correct. A network blip will, so it stays queued.
+ * A permission, missing-table or constraint failure will never succeed on retry
+ * — dropping it is correct. A network blip will, so it stays queued.
  */
 function isFatal(code: string | undefined): boolean {
   if (!code) return false
-  return code === '42501' || code === '23514' || code === '23503' || code.startsWith('PGRST')
+  return (
+    code === '42501' ||
+    code === '42P01' ||
+    code === '23514' ||
+    code === '23503' ||
+    code.startsWith('PGRST')
+  )
 }
 
 export function OutboxProvider({ children }: { children: ReactNode }) {
@@ -61,6 +95,7 @@ export function OutboxProvider({ children }: { children: ReactNode }) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return
 
     draining.current = true
+    let sentAny = false
     try {
       const entries = await peekAll()
       for (const entry of entries) {
@@ -68,6 +103,7 @@ export function OutboxProvider({ children }: { children: ReactNode }) {
 
         const result = await send(entry.op)
         if (result.ok) {
+          sentAny = true
           await remove(entry.seq)
           continue
         }
@@ -86,8 +122,13 @@ export function OutboxProvider({ children }: { children: ReactNode }) {
     } finally {
       draining.current = false
       await refreshCount()
-      // Whatever landed should now be reflected from the server.
-      void queryClient.invalidateQueries({ queryKey: ['items'] })
+      // Only invalidate when something actually replayed; avoids needless
+      // refetches on the 30-second heartbeat when the outbox is empty.
+      if (sentAny) {
+        void queryClient.invalidateQueries({ queryKey: ['items'] })
+        void queryClient.invalidateQueries({ queryKey: ['sublists'] })
+        void queryClient.invalidateQueries({ queryKey: ['sublist-items'] })
+      }
     }
   }, [queryClient, refreshCount])
 

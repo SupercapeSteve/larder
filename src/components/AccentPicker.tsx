@@ -17,7 +17,7 @@ export function AccentPicker({
     <fieldset className="px-4 py-3">
       <legend className="text-sm font-medium text-larder-950 dark:text-larder-50">App colour</legend>
       <p className="mt-0.5 text-xs text-larder-600 dark:text-larder-400">
-        Re-themes the whole app. Saved on this device.
+        Re-themes the whole app. Saved to your account.
       </p>
 
       <div className="mt-3 flex flex-wrap gap-2" role="radiogroup" aria-label="App colour">

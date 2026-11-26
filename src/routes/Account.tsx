@@ -54,106 +54,110 @@ export default function Account() {
         </div>
       }
     >
-      <div className="space-y-6 py-4 pb-12">
-        <NameSection />
-        <AvatarSection />
+      <div className="space-y-6 py-4 pb-12 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0">
+        <div className="space-y-6">
+          <NameSection />
+          <AvatarSection />
 
-        <SettingsSection title="Account">
-          <InfoRow icon={<Mail className="h-5 w-5" aria-hidden />} label="Email" value={user?.email ?? '—'} />
-          <InfoRow
-            icon={<Users className="h-5 w-5" aria-hidden />}
-            label="Households"
-            value={`${(households ?? []).length} joined`}
-          />
-        </SettingsSection>
+          <SettingsSection title="Account">
+            <InfoRow icon={<Mail className="h-5 w-5" aria-hidden />} label="Email" value={user?.email ?? '—'} />
+            <InfoRow
+              icon={<Users className="h-5 w-5" aria-hidden />}
+              label="Households"
+              value={`${(households ?? []).length} joined`}
+            />
+          </SettingsSection>
 
-        <PasswordSection />
-
-        <SettingsSection title="Appearance" description="Applies on this device only.">
-          <AccentPicker
-            value={preferences.accent}
-            onChange={(next) => setPreference('accent', next)}
-          />
-          <ChoiceRow
-            label="Theme"
-            value={preferences.theme}
-            choices={THEME_CHOICES}
-            onChange={(next) => setPreference('theme', next)}
-          />
-          <ChoiceRow
-            label="Text size"
-            description="Scales the whole app, not just item names."
-            value={preferences.textSize}
-            choices={TEXT_SIZE_CHOICES}
-            onChange={(next) => setPreference('textSize', next)}
-          />
-        </SettingsSection>
-
-        <SettingsSection title="The list">
-          <ToggleRow
-            label="Group by aisle"
-            description="Off shows one flat list in the order things were added."
-            checked={preferences.groupByCategory}
-            onChange={(next) => setPreference('groupByCategory', next)}
-          />
-          <ToggleRow
-            label="Show aisle icons"
-            checked={preferences.showEmoji}
-            onChange={(next) => setPreference('showEmoji', next)}
-          />
-          <ToggleRow
-            label="Show who added what"
-            description="The small name and initial under each item."
-            checked={preferences.showAttribution}
-            onChange={(next) => setPreference('showAttribution', next)}
-          />
-          <ToggleRow
-            label="Collapse checked items"
-            description="Off keeps them in place, ticked, instead of moving them to the bottom."
-            checked={preferences.autoCollapseChecked}
-            onChange={(next) => setPreference('autoCollapseChecked', next)}
-          />
-          <ToggleRow
-            label="Haptics"
-            description="A short tap when you long-press or check something off."
-            checked={preferences.haptics}
-            onChange={(next) => setPreference('haptics', next)}
-          />
-        </SettingsSection>
-
-        <div className="space-y-2">
-          <Link to="/households" className="btn-secondary w-full gap-2">
-            <Users className="h-4 w-4" aria-hidden />
-            Switch household
-          </Link>
-
-          <button
-            type="button"
-            onClick={() => {
-              resetPreferences()
-              showToast({ message: 'Preferences reset.' })
-            }}
-            className="btn-ghost w-full text-sm"
-          >
-            Reset preferences
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setConfirmSignOut(true)}
-            className="btn-ghost w-full gap-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
-          >
-            <LogOut className="h-4 w-4" aria-hidden />
-            Sign out
-          </button>
+          <PasswordSection />
         </div>
 
-        <NotificationsSection />
-        <PrivacySection />
+        <div className="space-y-6">
+          <SettingsSection title="Appearance" description="Follows your account across devices.">
+            <AccentPicker
+              value={preferences.accent}
+              onChange={(next) => setPreference('accent', next)}
+            />
+            <ChoiceRow
+              label="Theme"
+              value={preferences.theme}
+              choices={THEME_CHOICES}
+              onChange={(next) => setPreference('theme', next)}
+            />
+            <ChoiceRow
+              label="Text size"
+              description="Scales the whole app, not just item names."
+              value={preferences.textSize}
+              choices={TEXT_SIZE_CHOICES}
+              onChange={(next) => setPreference('textSize', next)}
+            />
+          </SettingsSection>
 
-        <p className="px-1 text-center text-xs text-larder-500">
-          Larder v1.1.0 · signed in as {profile?.display_name ?? user?.email ?? 'you'}
-        </p>
+          <SettingsSection title="The list">
+            <ToggleRow
+              label="Group by aisle"
+              description="Off shows one flat list in the order things were added."
+              checked={preferences.groupByCategory}
+              onChange={(next) => setPreference('groupByCategory', next)}
+            />
+            <ToggleRow
+              label="Show aisle icons"
+              checked={preferences.showEmoji}
+              onChange={(next) => setPreference('showEmoji', next)}
+            />
+            <ToggleRow
+              label="Show who added what"
+              description="The small name and initial under each item."
+              checked={preferences.showAttribution}
+              onChange={(next) => setPreference('showAttribution', next)}
+            />
+            <ToggleRow
+              label="Collapse checked items"
+              description="Off keeps them in place, ticked, instead of moving them to the bottom."
+              checked={preferences.autoCollapseChecked}
+              onChange={(next) => setPreference('autoCollapseChecked', next)}
+            />
+            <ToggleRow
+              label="Haptics"
+              description="A short tap when you long-press or check something off."
+              checked={preferences.haptics}
+              onChange={(next) => setPreference('haptics', next)}
+            />
+          </SettingsSection>
+
+          <NotificationsSection />
+          <PrivacySection />
+
+          <div className="space-y-2">
+            <Link to="/households" className="btn-secondary w-full gap-2">
+              <Users className="h-4 w-4" aria-hidden />
+              Switch household
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => {
+                resetPreferences()
+                showToast({ message: 'Preferences reset.' })
+              }}
+              className="btn-ghost w-full text-sm"
+            >
+              Reset preferences
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setConfirmSignOut(true)}
+              className="btn-ghost w-full gap-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+            >
+              <LogOut className="h-4 w-4" aria-hidden />
+              Sign out
+            </button>
+          </div>
+
+          <p className="px-1 text-center text-xs text-larder-500">
+            Larder v1.2.0 · signed in as {profile?.display_name ?? user?.email ?? 'you'}
+          </p>
+        </div>
       </div>
 
       <ConfirmDialog

@@ -94,7 +94,7 @@ function manifestFor(accent) {
     short_name: 'Groceries',
     description: 'A realtime household grocery list.',
     display: 'standalone',
-    orientation: 'portrait',
+    orientation: 'any',
     theme_color: ACCENTS[accent][0],
     background_color: BACKGROUND[accent],
     start_url: '/',

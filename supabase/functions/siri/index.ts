@@ -75,7 +75,7 @@ const SPELLED: Record<string, string> = {
 
 const UNITS = [
   'kg', 'kgs', 'g', 'gram', 'grams', 'lb', 'lbs', 'oz', 'l', 'litre', 'litres',
-  'liter', 'liters', 'ml', 'cl', 'pack', 'packs', 'pk', 'punnet', 'punnets',
+  'liter', 'liters', 'ml', 'cl', 'pack', 'packs', 'pk', 'pkt', 'punnet', 'punnets',
   'bunch', 'bunches', 'tin', 'tins', 'can', 'cans', 'jar', 'jars', 'box',
   'boxes', 'bottle', 'bottles', 'bag', 'bags', 'dozen', 'doz',
 ].join('|')
@@ -500,7 +500,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
   const { data: membership, error: membershipError } = await db
     .from('household_members')
-    .select('user_id')
+    .select('user_id, role')
     .eq('household_id', (list as { household_id: string }).household_id)
     .eq('user_id', token.user_id)
     .maybeSingle()
@@ -512,6 +512,12 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
   if (!membership) {
     return speak('You no longer have access to that list.', {}, false)
+  }
+
+  // A member who minted a token and was later demoted to viewer keeps read
+  // access, but must not write through the service-role client.
+  if (body.action !== 'read' && (membership as { role?: string }).role === 'viewer') {
+    return speak('You have view-only access to this list, so I can read it out but not change it.', {}, false)
   }
 
   // Best-effort: a failure here must not cost the user their action.
@@ -527,6 +533,25 @@ Deno.serve(async (request: Request): Promise<Response> => {
   switch (body.action) {
     case 'add':
       response = await handleAdd(db, token, body.text)
+      if (body.text) {
+        const clean = tidy(body.text)
+        const householdId = (list as { household_id: string }).household_id
+        // Fire-and-forget push nudge to housemates; never block Siri's voice reply.
+        fetch(`${supabaseUrl.replace(/\/$/, '')}/functions/v1/notify`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${serviceRoleKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            list_id: token.list_id,
+            actor_id: token.user_id,
+            title: 'Added via Siri',
+            body: clean.slice(0, 140),
+            url: `/h/${householdId}`,
+          }),
+        }).catch(() => undefined)
+      }
       break
     case 'read':
       response = await handleRead(db, token)

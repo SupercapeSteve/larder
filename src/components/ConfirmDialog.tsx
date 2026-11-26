@@ -46,7 +46,7 @@ export function ConfirmDialog({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+    <div className="safe-x fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <button
         type="button"
         aria-label="Close"
@@ -58,7 +58,7 @@ export function ConfirmDialog({
         aria-modal="true"
         aria-labelledby="confirm-title"
         aria-describedby="confirm-body"
-        className="safe-bottom animate-dialog-in relative m-3 w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl dark:bg-larder-900 sm:rounded-2xl"
+        className="safe-bottom animate-dialog-in scroll-y relative m-2 max-h-[calc(100dvh-1rem)] w-full max-w-sm rounded-3xl bg-white p-4 shadow-2xl min-[380px]:m-3 min-[380px]:p-5 sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl dark:bg-larder-900"
       >
         <h2 id="confirm-title" className="text-lg font-semibold text-larder-950 dark:text-larder-50">
           {title}

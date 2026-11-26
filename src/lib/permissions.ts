@@ -39,6 +39,7 @@ export const CAPABILITIES = [
   { key: 'addItems', label: 'Add items', min: 'member' },
   { key: 'checkItems', label: 'Check items off', min: 'member' },
   { key: 'editItems', label: 'Edit and delete items', min: 'member' },
+  { key: 'manageSublists', label: 'Create and edit sub-lists', min: 'member' },
   { key: 'clearChecked', label: 'Clear checked items', min: 'member' },
   { key: 'seeCode', label: 'See the invite code', min: 'member' },
   { key: 'useSiri', label: 'Use Siri shortcuts', min: 'member' },

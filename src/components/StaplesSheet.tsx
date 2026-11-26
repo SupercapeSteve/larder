@@ -55,7 +55,7 @@ export function StaplesSheet({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+    <div className="safe-x fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <button
         type="button"
         aria-label="Close"
@@ -67,7 +67,7 @@ export function StaplesSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby="staples-title"
-        className="safe-bottom animate-sheet-in scroll-y relative max-h-[85vh] w-full max-w-md rounded-t-3xl bg-white p-5 shadow-2xl dark:bg-larder-900 sm:m-3 sm:rounded-2xl"
+        className="safe-bottom animate-sheet-in scroll-y relative max-h-[calc(100dvh-0.75rem)] w-full max-w-md rounded-t-3xl bg-white p-4 shadow-2xl min-[380px]:p-5 sm:m-3 sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl dark:bg-larder-900"
       >
         <div
           aria-hidden

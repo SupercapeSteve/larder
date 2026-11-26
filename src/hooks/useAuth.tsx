@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { qk } from '@/lib/queryClient'
 import { authErrorMessage } from '@/lib/authErrors'
+import { LAST_HOUSEHOLD_KEY, removeLocal } from '@/lib/storage'
+import { clear as clearOutbox } from '@/lib/outbox'
 import type { Profile, TablesUpdate } from '@/types/database'
 
 export type AuthStatus = 'loading' | 'signed-in' | 'signed-out'
@@ -60,6 +62,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setStatus('signed-out')
           setRecovering(false)
           lastUserId.current = null
+          // Wipe device-scoped pointers and any queued offline writes so the
+          // next person on a shared device never replays the previous user's
+          // outbox under their own JWT.
+          removeLocal(LAST_HOUSEHOLD_KEY)
+          void clearOutbox()
           queryClient.clear()
           break
         }
@@ -81,6 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         default: {
           const nextId = nextSession?.user.id ?? null
           if (lastUserId.current !== null && nextId !== null && lastUserId.current !== nextId) {
+            removeLocal(LAST_HOUSEHOLD_KEY)
+            void clearOutbox()
             queryClient.clear()
           }
           lastUserId.current = nextId

@@ -3,7 +3,7 @@
   "short_name": "Groceries",
   "description": "A realtime household grocery list.",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "theme_color": "#be185d",
   "background_color": "#fdf2f8",
   "start_url": "/",

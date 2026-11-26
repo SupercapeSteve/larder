@@ -72,3 +72,10 @@ secure_password_change = false
 # verify_jwt left on, the platform rejects the request before the function
 # runs and every Shortcut invocation returns an opaque 401.
 verify_jwt = false
+
+[functions.notify]
+# Authenticated inside the function against either a user JWT or the internal
+# service-role key (when Siri fans out a push). Leaving gateway verify_jwt off
+# avoids ES256/new-key-format mismatches at the edge while keeping strict auth
+# in code.
+verify_jwt = false

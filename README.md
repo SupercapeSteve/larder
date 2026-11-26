@@ -25,11 +25,13 @@ attribution, without refreshing.
 - **Optimistic** — every mutation lands instantly and rolls back if the server refuses
 - **Voice** — "Siri, add to Larder" → speak your items → hear them confirmed back
 - **Home screen widget** — via Scriptable, reading the same API
-- **Offline-aware** — the app shell is cached and an honest banner appears rather than
-  silently dropping writes
+- **Offline-first** — the app shell is precached and writes made with no signal queue in
+  IndexedDB and replay FIFO when connectivity returns
+- **Sub-lists & recipes** — group ingredients for specific dishes, dinner plans or trips while
+  keeping every item visible and aisle-sorted on the main household list
 - **Aisle-sorted** — 16 categories assigned automatically from a keyword map, in the order
-  you walk a shop
-- **Households** — six-character invite codes, owner/member permissions, avatars
+  you walk a shop, plus per-household learned rules
+- **Households** — six-character invite codes, owner/admin/member/viewer permissions, avatars
 
 ### Security posture
 
@@ -314,14 +316,13 @@ scripts/        icon generation
 
 ## Known limits
 
-- **Join codes are permanent and shared.** Six characters from a 31-character alphabet is
-  ~8.9×10⁸ combinations, and `join_household_by_code` has no rate limit, so an
-  authenticated attacker can grind against it. This is the data model the project
-  specifies — a code you read aloud over the phone. If that trade stops being acceptable,
-  the fix is single-use expiring invites, not a longer code.
-- **Offline is read-only.** The service worker caches the app shell so Larder opens
-  without signal, but mutations are not queued — an offline banner says so rather than
-  pretending the tap worked.
+- **Join codes are shared.** Six characters from a 31-character alphabet (~8.9×10⁸
+  combinations), rate-limited to ten failed attempts per hour per account in
+  `join_household_by_code`. If a code leaks, an owner or admin can rotate it immediately from
+  Household settings.
+- **Offline writes replay FIFO.** Mutations made offline persist to IndexedDB (`larder-outbox`)
+  and drain in order on reconnect; a permission or constraint refusal is dropped after retry
+  limits rather than wedging the queue.
 - **Last write wins.** Two people editing the same item in the same second: one of them
   loses. For a grocery list that is the correct amount of machinery.
 - **Undo re-attributes.** `added_by` and `checked_by` are set by the database from the

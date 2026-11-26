@@ -96,12 +96,12 @@ export function AvatarPicker({
         className="sr-only"
         aria-label="Choose a profile picture"
       />
-      <div className="mb-5 flex gap-2">
+      <div className="mb-5 flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className="btn-secondary flex-1 gap-2 text-sm"
+          className="btn-secondary min-w-[9rem] flex-1 gap-2 text-sm"
         >
           {uploading ? <Spinner /> : <ImageUp className="h-4 w-4" aria-hidden />}
           {imageUrl ? 'Change photo' : 'Upload a photo'}
@@ -157,7 +157,11 @@ export function AvatarPicker({
         <legend className="mb-2 text-xs font-medium text-larder-700 dark:text-larder-300">
           Emoji
         </legend>
-        <div className="grid grid-cols-8 gap-1.5" role="radiogroup" aria-label="Avatar emoji">
+        <div
+          className="grid grid-cols-4 gap-1.5 min-[320px]:grid-cols-6 sm:grid-cols-8"
+          role="radiogroup"
+          aria-label="Avatar emoji"
+        >
           {AVATAR_EMOJI.map((option) => {
             const selected = emoji === option
             return (

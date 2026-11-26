@@ -252,7 +252,7 @@ export function ImageCropper({ file, busy = false, onCancel, onConfirm }: ImageC
   const height = image ? image.naturalHeight * scale : 0
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+    <div className="safe-x fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <button
         type="button"
         aria-label="Cancel"
@@ -264,21 +264,21 @@ export function ImageCropper({ file, busy = false, onCancel, onConfirm }: ImageC
         role="dialog"
         aria-modal="true"
         aria-labelledby="cropper-title"
-        className="safe-bottom animate-sheet-in relative w-full max-w-md rounded-t-3xl bg-white p-5 shadow-2xl dark:bg-larder-900 sm:m-3 sm:rounded-2xl"
+        className="safe-bottom animate-sheet-in scroll-y relative max-h-[calc(100dvh-0.75rem)] w-full max-w-md rounded-t-3xl bg-white p-4 shadow-2xl min-[380px]:p-5 sm:m-3 sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl dark:bg-larder-900"
       >
         <div
           aria-hidden
-          className="mx-auto mb-4 h-1 w-9 rounded-full bg-larder-300 dark:bg-larder-700 sm:hidden"
+          className="mx-auto mb-3 h-1 w-9 rounded-full bg-larder-300 dark:bg-larder-700 sm:hidden"
         />
 
-        <div className="mb-4 flex items-center justify-between">
-          <h2 id="cropper-title" className="text-lg font-semibold text-larder-950 dark:text-larder-50">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 id="cropper-title" className="truncate text-lg font-semibold text-larder-950 dark:text-larder-50">
             Position your photo
           </h2>
           <button
             type="button"
             onClick={onCancel}
-            className="tap -mr-2 rounded-xl text-larder-500"
+            className="tap -mr-2 shrink-0 rounded-xl text-larder-500"
             aria-label="Cancel"
           >
             <X className="h-5 w-5" aria-hidden />
@@ -286,12 +286,12 @@ export function ImageCropper({ file, busy = false, onCancel, onConfirm }: ImageC
         </div>
 
         {error ? (
-          <div className="mb-4">
+          <div className="mb-3">
             <ErrorBanner>{error}</ErrorBanner>
           </div>
         ) : null}
 
-        {/* ── Crop frame ────────────────────────────────────────────────── */}
+        {/* ── Crop frame (shrinks cleanly on short landscape viewports) ──── */}
         <div
           ref={frameRef}
           onPointerDown={onPointerDown}
@@ -299,7 +299,8 @@ export function ImageCropper({ file, busy = false, onCancel, onConfirm }: ImageC
           onPointerUp={endPointer}
           onPointerCancel={endPointer}
           onWheel={onWheel}
-          className="relative mx-auto aspect-square w-full max-w-[320px] cursor-grab touch-none select-none overflow-hidden rounded-2xl bg-larder-950 active:cursor-grabbing"
+          className="relative mx-auto aspect-square w-full cursor-grab touch-none select-none overflow-hidden rounded-2xl bg-larder-950 active:cursor-grabbing"
+          style={{ maxWidth: 'min(320px, 100%, max(140px, calc(100dvh - 15.5rem)))' }}
         >
           {loading || !image ? (
             <div className="flex h-full items-center justify-center">

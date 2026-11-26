@@ -185,7 +185,7 @@ function JoinHousehold({ onBack }: { onBack: () => void }) {
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
           error={fieldError}
-          className="text-center font-mono text-2xl uppercase tracking-[0.35em]"
+          className="text-center font-mono text-xl uppercase tracking-[0.2em] min-[360px]:text-2xl min-[360px]:tracking-[0.35em]"
           required
         />
 

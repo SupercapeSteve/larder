@@ -218,7 +218,7 @@ export default function Aisles() {
 
       {/* ── Move sheet ──────────────────────────────────────────────────── */}
       {moving ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+        <div className="safe-x fixed inset-0 z-50 flex items-end justify-center sm:items-center">
           <button
             type="button"
             aria-label="Cancel"
@@ -229,21 +229,21 @@ export default function Aisles() {
             role="dialog"
             aria-modal="true"
             aria-label={`Move ${moving.name}`}
-            className="safe-bottom animate-sheet-in scroll-y relative max-h-[80vh] w-full max-w-md rounded-t-3xl bg-white p-5 shadow-2xl dark:bg-larder-900 sm:m-3 sm:rounded-2xl"
+            className="safe-bottom animate-sheet-in scroll-y relative max-h-[calc(100dvh-0.75rem)] w-full max-w-md rounded-t-3xl bg-white p-4 shadow-2xl min-[380px]:p-5 sm:m-3 sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl dark:bg-larder-900"
           >
             <div
               aria-hidden
-              className="mx-auto mb-4 h-1 w-9 rounded-full bg-larder-300 dark:bg-larder-700 sm:hidden"
+              className="mx-auto mb-3 h-1 w-9 rounded-full bg-larder-300 dark:bg-larder-700 sm:hidden"
             />
-            <h2 className="text-lg font-semibold text-larder-950 dark:text-larder-50">
+            <h2 className="truncate text-lg font-semibold text-larder-950 dark:text-larder-50">
               Move “{moving.name}”
             </h2>
             <p className="mt-1 flex items-center gap-1.5 text-xs text-larder-600 dark:text-larder-400">
-              <Wand2 className="h-3.5 w-3.5" aria-hidden />
-              Larder will remember this for next time.
+              <Wand2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>Larder will remember this for next time.</span>
             </p>
 
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid grid-cols-1 gap-2 min-[300px]:grid-cols-2 sm:grid-cols-3">
               {CATEGORIES.map((category) => {
                 const current = toCategory(moving.category) === category
                 return (
@@ -258,7 +258,7 @@ export default function Aisles() {
                     }`}
                   >
                     <span aria-hidden>{CATEGORY_EMOJI[category]}</span>
-                    {category}
+                    <span className="truncate">{category}</span>
                   </button>
                 )
               })}

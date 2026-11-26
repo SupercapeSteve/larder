@@ -6,6 +6,10 @@ import { useOutbox } from '@/hooks/useOutbox'
  * A shop is exactly where the signal drops. Writes are queued rather than
  * lost, so this reports what is waiting instead of telling people their taps
  * failed.
+ *
+ * Rendered in normal flex flow above the route shell rather than `fixed` on top
+ * of it, so it pushes the header down cleanly instead of obscuring the
+ * household title and settings controls.
  */
 export function OfflineBanner() {
   const [offline, setOffline] = useState(() =>
@@ -28,7 +32,18 @@ export function OfflineBanner() {
     }
   }, [])
 
-  if (!offline && pending === 0) return null
+  const visible = offline || pending > 0
+
+  useEffect(() => {
+    if (visible) {
+      document.documentElement.setAttribute('data-top-banner', 'true')
+    } else {
+      document.documentElement.removeAttribute('data-top-banner')
+    }
+    return () => document.documentElement.removeAttribute('data-top-banner')
+  }, [visible])
+
+  if (!visible) return null
 
   const waiting = pending > 0 ? `${pending} ${pending === 1 ? 'change' : 'changes'} waiting` : null
 
@@ -36,20 +51,20 @@ export function OfflineBanner() {
     <div
       role="status"
       aria-live="polite"
-      className={`safe-top fixed inset-x-0 top-0 z-40 px-4 py-1.5 text-center text-xs font-medium ${
+      className={`safe-top safe-x shrink-0 px-3 py-1.5 text-center text-xs font-medium ${
         offline ? 'bg-amber-500 text-amber-950' : 'bg-larder-600 text-white'
       }`}
     >
-      <span className="inline-flex items-center gap-1.5">
+      <span className="inline-flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5">
         {offline ? (
           <>
-            <CloudOff className="h-3.5 w-3.5" aria-hidden />
-            Offline — {waiting ?? 'your changes will be saved when you reconnect'}
+            <CloudOff className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span>Offline — {waiting ?? 'changes save when you reconnect'}</span>
           </>
         ) : (
           <>
-            <UploadCloud className="h-3.5 w-3.5" aria-hidden />
-            Syncing — {waiting}
+            <UploadCloud className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span>Syncing — {waiting}</span>
           </>
         )}
       </span>
